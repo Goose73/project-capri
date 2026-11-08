@@ -26,7 +26,9 @@ public sealed class FileTaskHistoryStore : ITaskHistoryStore
         ArgumentNullException.ThrowIfNull(entry);
         lock (Sync)
         {
-            Directory.CreateDirectory(HistoryDir);
+            TaskDirectorySecurity.EnsurePrivateDirectory(_paths.Root);
+            TaskDirectorySecurity.EnsurePrivateDirectory(Path.Combine(_paths.Root, "tasks"));
+            TaskDirectorySecurity.EnsurePrivateDirectory(HistoryDir);
             var sanitized = Sanitize(entry);
             WriteJsonAtomic(Path.Combine(HistoryDir, sanitized.TaskId.ToString("N") + ".json"), sanitized);
             UpdateIndex(sanitized);
@@ -116,7 +118,7 @@ public sealed class FileTaskHistoryStore : ITaskHistoryStore
     private static void WriteJsonAtomic<T>(string path, T value)
     {
         var dir = Path.GetDirectoryName(path)!;
-        Directory.CreateDirectory(dir);
+        TaskDirectorySecurity.EnsurePrivateDirectory(dir);
         var json = JsonSerializer.Serialize(value, JsonOptions);
         if (json.Length > MaxJsonBytes) throw new InvalidOperationException("Task metadata too large.");
         var temp = Path.Combine(dir, Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");

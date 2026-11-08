@@ -98,9 +98,24 @@ public sealed class TaskControlTests
     public async Task HistoryStoreIsMetadataOnlyAndBounded()
     {
         using var temp = new TempDirectory();
-        var store = new FileTaskHistoryStore(new CapriPaths(temp.Path));
+        var paths = new CapriPaths(temp.Path);
+        var store = new FileTaskHistoryStore(paths);
         var id = Guid.NewGuid();
         store.Record(new TaskHistoryEntry(id, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Completed", 1, 2, "ollama", "qwen3.5:4b", true, true, "ok"));
+
+        var tasks = new DirectoryInfo(Path.Combine(temp.Path, "tasks"));
+        using (var identity = WindowsIdentity.GetCurrent())
+        {
+            var tasksSecurity = tasks.GetAccessControl();
+            Assert.Equal(identity.User, tasksSecurity.GetOwner(typeof(SecurityIdentifier)));
+            Assert.True(tasksSecurity.AreAccessRulesProtected);
+            var historySecurity = new DirectoryInfo(Path.Combine(tasks.FullName, "history")).GetAccessControl();
+            Assert.Equal(identity.User, historySecurity.GetOwner(typeof(SecurityIdentifier)));
+            Assert.True(historySecurity.AreAccessRulesProtected);
+        }
+
+        // History may initialize shared task storage before task control is used.
+        new FileTaskControl(paths).RequestStop("after history initialization");
 
         var entry = store.Find(id);
         Assert.NotNull(entry);
