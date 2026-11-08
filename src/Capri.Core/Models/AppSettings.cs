@@ -7,9 +7,10 @@ namespace Capri.Core.Models;
 public sealed record AppSettings
 {
     /// <summary>
-    /// Schema version used for forward-compatible migrations.
+    /// Schema version used for forward-compatible migrations. Version 2 adds
+    /// provider inference-safety settings.
     /// </summary>
-    public int SchemaVersion { get; init; } = 1;
+    public int SchemaVersion { get; init; } = 2;
 
     /// <summary>
     /// Model provider configuration.
@@ -70,6 +71,24 @@ public sealed record AppSettings
         /// HTTP request timeout in seconds.
         /// </summary>
         public int RequestTimeoutSeconds { get; init; } = 60;
+
+        /// <summary>
+        /// True when only free (or local) model ids should be selected. Added
+        /// in schema version 2; safe default is on.
+        /// </summary>
+        public bool FreeModelsOnly { get; init; } = true;
+
+        /// <summary>
+        /// True when cloud inference has been explicitly allowed. Added in
+        /// schema version 2; safe default is off.
+        /// </summary>
+        public bool AllowCloudInference { get; init; }
+
+        /// <summary>
+        /// UTC timestamp of the recorded cloud-inference consent, or null when
+        /// no consent has been recorded. Added in schema version 2.
+        /// </summary>
+        public DateTimeOffset? CloudConsentRecordedUtc { get; init; }
     }
 
     /// <summary>

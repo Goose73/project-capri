@@ -10,6 +10,7 @@ using Capri.Automation.Web;
 using Capri.Core.Abstractions;
 using Capri.Core.Autonomy;
 using Capri.Core.Models;
+using Capri.Core.Providers;
 using Capri.Desktop.Services;
 using Capri.Providers;
 using Capri.Security;
@@ -53,7 +54,8 @@ internal static class Program
         var paths = new CapriPaths();
         // No fallback settings: require explicit persisted provider, model and endpoint.
         var configured = false;
-        string? providerId = null, model = null;
+        string? providerId = null, model = null, endpoint = null;
+        var allowCloudInference = false;
         if (File.Exists(paths.SettingsFile))
         {
             try
@@ -62,25 +64,68 @@ internal static class Program
                 var configuredProvider = doc.RootElement.GetProperty("provider");
                 providerId = configuredProvider.GetProperty("providerId").GetString();
                 model = configuredProvider.GetProperty("chatModel").GetString();
-                var endpoint = configuredProvider.GetProperty("baseUrl").GetString();
-                configured = !string.IsNullOrWhiteSpace(providerId) && !string.IsNullOrWhiteSpace(model) &&
-                    Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps &&
-                    string.IsNullOrEmpty(uri.UserInfo);
+                endpoint = configuredProvider.GetProperty("baseUrl").GetString();
+                allowCloudInference = configuredProvider.TryGetProperty("allowCloudInference", out var consent)
+                    && consent.ValueKind == JsonValueKind.True;
+                configured = !string.IsNullOrWhiteSpace(providerId) && !string.IsNullOrWhiteSpace(model)
+                    && IsAcceptableLiveEndpoint(providerId, endpoint);
             }
             catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or IOException) { }
         }
         using var credentials = new DpapiCredentialStore(paths);
-        var hasCredential = await credentials.HasAsync(OpenAiCompatibleChatProvider.ApiKeyCredentialKey);
+        var profile = ProviderCatalog.TryGetById(providerId, out var resolvedProfile) ? resolvedProfile : null;
+        var requiresCredential = profile is null || profile.RequiresApiKey;
+        var hasCredential = await HasConfiguredCredentialAsync(credentials, providerId);
         // Status exposes only provider/model and credential presence; no URL, key or response body.
         Console.WriteLine(JsonSerializer.Serialize(new { provider = providerId, model, credentialExists = hasCredential }));
         if (mode == "config-status") return 0;
-        if (!configured || !hasCredential)
+        if (!configured)
         {
-            Console.Error.WriteLine("Live blocked: explicit supported provider, HTTPS endpoint, model and DPAPI credential required.");
+            Console.Error.WriteLine("Live blocked: explicit supported provider, acceptable HTTPS or local-loopback endpoint, and model required.");
+            return 3;
+        }
+        if ((profile is null || profile.IsCloud) && !allowCloudInference)
+        {
+            Console.Error.WriteLine("Live blocked: explicit cloud-inference consent is required for cloud providers.");
+            return 3;
+        }
+        if (requiresCredential && !hasCredential)
+        {
+            Console.Error.WriteLine("Live blocked: the configured provider profile requires a DPAPI credential.");
             return 3;
         }
 
         return await RunTaskAsync(mode);
+    }
+
+    private static async Task<bool> HasConfiguredCredentialAsync(DpapiCredentialStore credentials, string? providerId)
+    {
+        if (string.IsNullOrWhiteSpace(providerId)) return false;
+
+        var profileKey = ProviderCatalog.TryGetById(providerId, out var profile)
+            ? ProviderCredentials.GetApiKeyCredentialKey(profile)
+            : ProviderCredentials.GetApiKeyCredentialKey(providerId);
+        if (await credentials.HasAsync(profileKey)) return true;
+
+        // One-time compatibility: the OpenAI profile may still rely on the legacy shared key.
+        return string.Equals(providerId, ProviderCatalog.OpenAiId, StringComparison.OrdinalIgnoreCase)
+            && await credentials.HasAsync(ProviderCredentials.LegacyApiKeyCredentialKey);
+    }
+
+    private static bool IsAcceptableLiveEndpoint(string providerId, string? endpoint)
+    {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || !string.IsNullOrEmpty(uri.UserInfo))
+        {
+            return false;
+        }
+
+        if (uri.Scheme == Uri.UriSchemeHttps) return true;
+
+        // Local catalog profiles may use plain HTTP only on a loopback address.
+        return uri.Scheme == Uri.UriSchemeHttp
+            && ProviderCatalog.TryGetById(providerId, out var profile)
+            && profile.IsLocal
+            && ProviderCatalog.IsLoopbackAllowedHttp(endpoint);
     }
 
     private static async Task<int> RunTaskAsync(string mode)

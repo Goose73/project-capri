@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using Capri.Core.Abstractions;
 using Capri.Core.Models;
+using Capri.Core.Providers;
 using Capri.Providers;
 using Capri.Security;
 using Capri.Tests.TestDoubles;
@@ -64,6 +66,42 @@ public sealed class OpenAiCompatibleChatProviderTests
         Assert.Equal(JsonValueKind.Array, messages.ValueKind);
         Assert.Equal("user", messages[0].GetProperty("role").GetString());
         Assert.Equal("Hi", messages[0].GetProperty("content").GetString());
+    }
+
+    [Fact]
+    public async Task CompleteAsyncIncludesJsonResponseFormatWhenRequested()
+    {
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var provider = CreateProvider(client, apiKey: "test-key");
+
+        var result = await provider.CompleteAsync(Request(requireJsonObject: true));
+
+        Assert.Null(result.Error);
+        var recorded = Assert.Single(handler.Requests);
+        using var body = JsonDocument.Parse(recorded.Body!);
+        var root = body.RootElement;
+
+        Assert.Equal("json_object", root.GetProperty("response_format").GetProperty("type").GetString());
+        // Existing request fields are preserved and no credential leaks into the body.
+        Assert.Equal("test-model", root.GetProperty("model").GetString());
+        Assert.False(root.GetProperty("stream").GetBoolean());
+        Assert.Equal(1024, root.GetProperty("max_tokens").GetInt32());
+        Assert.DoesNotContain("test-key", recorded.Body!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CompleteAsyncOmitsJsonResponseFormatByDefault()
+    {
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var provider = CreateProvider(client);
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.Null(result.Error);
+        using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
+        Assert.False(body.RootElement.TryGetProperty("response_format", out _));
     }
 
     [Fact]
@@ -266,6 +304,165 @@ public sealed class OpenAiCompatibleChatProviderTests
         Assert.Equal(0, handler.RequestCount);
     }
 
+    [Theory]
+    [InlineData(ProviderCatalog.OpenAiId)]
+    [InlineData(ProviderCatalog.OpenRouterId)]
+    public async Task CloudProfileWithoutConsentBlocksChatWithoutSendingRequestOrReadingCredentials(
+        string providerId)
+    {
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var store = new TrackingCredentialStore();
+        await store.SeedAsync(ProviderCredentials.GetApiKeyCredentialKey(providerId), "profile-key");
+        var provider = CreateProvider(
+            client,
+            Settings(providerId: providerId, allowCloudInference: false),
+            store);
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.NotNull(result.Error);
+        Assert.Equal(ProviderErrorKind.Configuration, result.Error!.Kind);
+        Assert.Equal(FreeModelGuard.CloudInferenceDisabledMessage, result.Error.Message);
+        Assert.Equal(0, handler.RequestCount);
+        Assert.Empty(store.Gets);
+    }
+
+    [Fact]
+    public async Task CloudProfileWithoutConsentBlocksStreamWithoutSendingRequest()
+    {
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var provider = CreateProvider(
+            client,
+            Settings(providerId: ProviderCatalog.OpenRouterId, allowCloudInference: false));
+
+        var deltas = await CollectAsync(provider.StreamAsync(Request()));
+
+        var delta = Assert.Single(deltas);
+        Assert.NotNull(delta.Error);
+        Assert.Equal(ProviderErrorKind.Configuration, delta.Error!.Kind);
+        Assert.Equal(FreeModelGuard.CloudInferenceDisabledMessage, delta.Error.Message);
+        Assert.Equal(0, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task CloudHealthProbeWithoutConsentDoesNotContactProvider()
+    {
+        using var handler = FakeHttpMessageHandler.Json("""{"data":[]}""");
+        using var client = new HttpClient(handler);
+        var provider = CreateProvider(
+            client,
+            Settings(providerId: ProviderCatalog.OpenAiId, allowCloudInference: false));
+
+        var health = await provider.CheckHealthAsync();
+
+        Assert.False(health.IsHealthy);
+        Assert.Equal(FreeModelGuard.CloudInferenceDisabledMessage, health.Message);
+        Assert.Equal(0, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task LocalProfileCompletesWithoutCloudConsent()
+    {
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var store = new TrackingCredentialStore();
+        await store.SeedAsync(
+            ProviderCredentials.GetApiKeyCredentialKey(ProviderCatalog.OllamaId),
+            "ollama-key");
+        var provider = CreateProvider(
+            client,
+            Settings(
+                baseUrl: "http://localhost:11434/v1",
+                providerId: ProviderCatalog.OllamaId,
+                freeModelsOnly: true,
+                allowCloudInference: false),
+            store);
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.Null(result.Error);
+        Assert.Equal("Hello", result.Message.Content);
+        Assert.Null(Assert.Single(handler.Requests).Authorization);
+        Assert.Empty(store.Gets);
+    }
+
+    [Fact]
+    public async Task OpenRouterFreeModelIsAllowedWithConsentAndFreeOnly()
+    {
+        const string freeModel = "meta-llama/llama-3.1-8b-instruct:free";
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var store = new TrackingCredentialStore();
+        await store.SeedAsync(
+            ProviderCredentials.GetApiKeyCredentialKey(ProviderCatalog.OpenRouterId),
+            "router-key");
+        var provider = CreateProvider(
+            client,
+            Settings(
+                providerId: ProviderCatalog.OpenRouterId,
+                model: freeModel,
+                freeModelsOnly: true,
+                allowCloudInference: true),
+            store);
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.Null(result.Error);
+        var recorded = Assert.Single(handler.Requests);
+        Assert.Equal("Bearer router-key", recorded.Authorization);
+        using var body = JsonDocument.Parse(recorded.Body!);
+        Assert.Equal(freeModel, body.RootElement.GetProperty("model").GetString());
+    }
+
+    [Fact]
+    public async Task OpenRouterNonFreeModelIsBlockedWhenFreeOnly()
+    {
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var store = new TrackingCredentialStore();
+        await store.SeedAsync(
+            ProviderCredentials.GetApiKeyCredentialKey(ProviderCatalog.OpenRouterId),
+            "router-key");
+        var provider = CreateProvider(
+            client,
+            Settings(
+                providerId: ProviderCatalog.OpenRouterId,
+                model: "openai/gpt-4o",
+                freeModelsOnly: true,
+                allowCloudInference: true),
+            store);
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.NotNull(result.Error);
+        Assert.Equal(ProviderErrorKind.InvalidRequest, result.Error!.Kind);
+        Assert.Equal(FreeModelGuard.FreeModelBlockedMessage, result.Error.Message);
+        Assert.Equal(0, handler.RequestCount);
+        Assert.Empty(store.Gets);
+    }
+
+    [Fact]
+    public async Task CloudFreeOnlyWithoutModelFailsClosedWithoutSendingRequest()
+    {
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var provider = CreateProvider(
+            client,
+            Settings(
+                model: string.Empty,
+                providerId: ProviderCatalog.OpenAiId,
+                freeModelsOnly: true,
+                allowCloudInference: true));
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.NotNull(result.Error);
+        Assert.Equal(ProviderErrorKind.Configuration, result.Error!.Kind);
+        Assert.Equal(0, handler.RequestCount);
+    }
+
     [Fact]
     public async Task StreamAsyncSurfacesHttpErrorAsErrorDelta()
     {
@@ -370,6 +567,242 @@ public sealed class OpenAiCompatibleChatProviderTests
         Assert.Contains("network", health.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("ollama", "http://localhost:11434/v1")]
+    [InlineData("lmstudio", "http://127.0.0.1:1234/v1")]
+    public async Task LocalProfilesNeverReadCredentialsOrSendAuthorizationForChat(
+        string providerId,
+        string baseUrl)
+    {
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var store = new TrackingCredentialStore();
+        await store.SeedAsync(OpenAiCompatibleChatProvider.ApiKeyCredentialKey, "legacy-key");
+        await store.SeedAsync(ProviderCredentials.GetApiKeyCredentialKey(providerId), "profile-key");
+        var provider = CreateProvider(
+            client,
+            Settings(baseUrl: baseUrl, providerId: providerId),
+            store);
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.Null(result.Error);
+        Assert.Equal("Hello", result.Message.Content);
+        Assert.Null(Assert.Single(handler.Requests).Authorization);
+        Assert.Empty(store.Gets);
+        Assert.Empty(store.HasChecks);
+        Assert.Empty(store.Sets);
+        Assert.Empty(store.Deletes);
+    }
+
+    [Fact]
+    public async Task LocalProfileHealthAndStreamNeverReadCredentialsOrSendAuthorization()
+    {
+        const string providerId = ProviderCatalog.OllamaId;
+        const string baseUrl = "http://localhost:11434/v1";
+        var store = new TrackingCredentialStore();
+        await store.SeedAsync(OpenAiCompatibleChatProvider.ApiKeyCredentialKey, "legacy-key");
+        await store.SeedAsync(ProviderCredentials.GetApiKeyCredentialKey(providerId), "profile-key");
+
+        using (var healthHandler = FakeHttpMessageHandler.Json("""{"data":[]}"""))
+        using (var healthClient = new HttpClient(healthHandler))
+        {
+            var provider = CreateProvider(
+                healthClient,
+                Settings(baseUrl: baseUrl, providerId: providerId),
+                store);
+
+            var health = await provider.CheckHealthAsync();
+
+            Assert.True(health.IsHealthy);
+            Assert.Null(Assert.Single(healthHandler.Requests).Authorization);
+        }
+
+        const string payload = """
+            data: {"choices":[{"delta":{"content":"ok"},"finish_reason":null}]}
+
+            data: [DONE]
+
+            """;
+
+        using (var streamHandler = FakeHttpMessageHandler.ServerSentEvents(payload))
+        using (var streamClient = new HttpClient(streamHandler))
+        {
+            var provider = CreateProvider(
+                streamClient,
+                Settings(baseUrl: baseUrl, providerId: providerId),
+                store);
+
+            var deltas = await CollectAsync(provider.StreamAsync(Request()));
+
+            Assert.Equal("ok", string.Concat(deltas.Select(delta => delta.Content)));
+            Assert.Null(Assert.Single(streamHandler.Requests).Authorization);
+        }
+
+        Assert.Empty(store.Gets);
+        Assert.Empty(store.HasChecks);
+        Assert.Empty(store.Sets);
+        Assert.Empty(store.Deletes);
+    }
+
+    [Fact]
+    public async Task LocalProfileWithoutStoredCredentialStillCompletes()
+    {
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var store = new TrackingCredentialStore();
+        var provider = CreateProvider(
+            client,
+            Settings(baseUrl: "http://localhost:11434/v1", providerId: ProviderCatalog.OllamaId),
+            store);
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.Null(result.Error);
+        Assert.Null(Assert.Single(handler.Requests).Authorization);
+        Assert.Empty(store.Gets);
+        Assert.Empty(store.HasChecks);
+    }
+
+    [Fact]
+    public async Task OpenAiUsesProfileCredentialAndDoesNotTouchLegacyKey()
+    {
+        var profileKey = ProviderCredentials.GetApiKeyCredentialKey(ProviderCatalog.OpenAi);
+        var store = new TrackingCredentialStore();
+        await store.SeedAsync(OpenAiCompatibleChatProvider.ApiKeyCredentialKey, "legacy-key");
+        await store.SeedAsync(profileKey, "openai-key");
+
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var provider = CreateProvider(client, Settings(providerId: ProviderCatalog.OpenAiId), store);
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.Null(result.Error);
+        Assert.Equal("Bearer openai-key", Assert.Single(handler.Requests).Authorization);
+        Assert.DoesNotContain(OpenAiCompatibleChatProvider.ApiKeyCredentialKey, store.Gets);
+        Assert.Empty(store.Sets);
+        Assert.Empty(store.Deletes);
+        Assert.Equal("legacy-key", await store.PeekAsync(OpenAiCompatibleChatProvider.ApiKeyCredentialKey));
+    }
+
+    [Fact]
+    public async Task OpenAiMigratesLegacyCredentialOnceThenUsesMigratedKey()
+    {
+        var profileKey = ProviderCredentials.GetApiKeyCredentialKey(ProviderCatalog.OpenAi);
+        var store = new TrackingCredentialStore();
+        await store.SeedAsync(OpenAiCompatibleChatProvider.ApiKeyCredentialKey, "legacy-key");
+
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var provider = CreateProvider(client, Settings(providerId: ProviderCatalog.OpenAiId), store);
+
+        var first = await provider.CompleteAsync(Request());
+
+        Assert.Null(first.Error);
+        Assert.Equal("Bearer legacy-key", handler.Requests[0].Authorization);
+        Assert.Equal(new[] { profileKey }, store.Sets);
+        Assert.Equal(new[] { OpenAiCompatibleChatProvider.ApiKeyCredentialKey }, store.Deletes);
+        Assert.Contains(profileKey, store.HasChecks);
+        Assert.Equal("legacy-key", await store.PeekAsync(profileKey));
+        Assert.False(await store.ContainsAsync(OpenAiCompatibleChatProvider.ApiKeyCredentialKey));
+
+        var getsAfterMigration = store.Gets.Count;
+        var setsAfterMigration = store.Sets.Count;
+
+        var second = await provider.CompleteAsync(Request());
+
+        Assert.Null(second.Error);
+        Assert.Equal("Bearer legacy-key", handler.Requests[1].Authorization);
+        Assert.Equal(setsAfterMigration, store.Sets.Count);
+        Assert.Equal(profileKey, store.Gets[^1]);
+        Assert.DoesNotContain(
+            OpenAiCompatibleChatProvider.ApiKeyCredentialKey,
+            store.Gets.Skip(getsAfterMigration));
+    }
+
+    [Fact]
+    public async Task OpenRouterNeverReadsOrInheritsLegacyCredential()
+    {
+        var store = new TrackingCredentialStore();
+        await store.SeedAsync(OpenAiCompatibleChatProvider.ApiKeyCredentialKey, "legacy-key");
+
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var provider = CreateProvider(client, Settings(providerId: ProviderCatalog.OpenRouterId), store);
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.Null(result.Error);
+        Assert.Null(Assert.Single(handler.Requests).Authorization);
+        Assert.DoesNotContain(OpenAiCompatibleChatProvider.ApiKeyCredentialKey, store.Gets);
+        Assert.DoesNotContain(OpenAiCompatibleChatProvider.ApiKeyCredentialKey, store.HasChecks);
+        Assert.Empty(store.Sets);
+        Assert.Empty(store.Deletes);
+        Assert.Equal("legacy-key", await store.PeekAsync(OpenAiCompatibleChatProvider.ApiKeyCredentialKey));
+    }
+
+    [Fact]
+    public async Task OpenRouterUsesItsOwnProfileCredential()
+    {
+        var profileKey = ProviderCredentials.GetApiKeyCredentialKey(ProviderCatalog.OpenRouter);
+        var store = new TrackingCredentialStore();
+        await store.SeedAsync(OpenAiCompatibleChatProvider.ApiKeyCredentialKey, "legacy-key");
+        await store.SeedAsync(profileKey, "router-key");
+
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var provider = CreateProvider(client, Settings(providerId: ProviderCatalog.OpenRouterId), store);
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.Null(result.Error);
+        Assert.Equal("Bearer router-key", Assert.Single(handler.Requests).Authorization);
+        Assert.DoesNotContain(OpenAiCompatibleChatProvider.ApiKeyCredentialKey, store.Gets);
+    }
+
+    [Theory]
+    [InlineData("openai")]
+    [InlineData("openrouter")]
+    public async Task CloudProfileWithoutCredentialSendsUnauthenticatedRequestAndSurfacesServerAuthFailure(
+        string providerId)
+    {
+        using var handler = FakeHttpMessageHandler.Json(
+            """{"error":{"message":"missing key"}}""",
+            HttpStatusCode.Unauthorized);
+        using var client = new HttpClient(handler);
+        var store = new TrackingCredentialStore();
+        var provider = CreateProvider(client, Settings(providerId: providerId), store);
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.NotNull(result.Error);
+        Assert.Equal(ProviderErrorKind.Authentication, result.Error!.Kind);
+        Assert.Null(Assert.Single(handler.Requests).Authorization);
+    }
+
+    [Fact]
+    public async Task UnknownRemoteProviderNeverInheritsLegacyCredential()
+    {
+        const string providerId = "custom-openai";
+        var store = new TrackingCredentialStore();
+        await store.SeedAsync(OpenAiCompatibleChatProvider.ApiKeyCredentialKey, "legacy-key");
+
+        using var handler = FakeHttpMessageHandler.Json(CompletionJson);
+        using var client = new HttpClient(handler);
+        var provider = CreateProvider(client, Settings(providerId: providerId), store);
+
+        var result = await provider.CompleteAsync(Request());
+
+        Assert.Null(result.Error);
+        Assert.Null(Assert.Single(handler.Requests).Authorization);
+        Assert.Equal(
+            new[] { ProviderCredentials.GetApiKeyCredentialKey(providerId) },
+            store.Gets);
+        Assert.Empty(store.Sets);
+        Assert.Empty(store.Deletes);
+    }
+
     private static OpenAiCompatibleChatProvider CreateProvider(
         HttpClient client,
         AppSettings? settings = null,
@@ -384,9 +817,17 @@ public sealed class OpenAiCompatibleChatProviderTests
                 .GetResult();
         }
 
+        return CreateProvider(client, settings ?? Settings(), credentialStore);
+    }
+
+    private static OpenAiCompatibleChatProvider CreateProvider(
+        HttpClient client,
+        AppSettings settings,
+        ISecureCredentialStore credentialStore)
+    {
         return new OpenAiCompatibleChatProvider(
             client,
-            new FakeAppSettingsStore(settings ?? Settings()),
+            new FakeAppSettingsStore(settings),
             credentialStore);
     }
 
@@ -394,24 +835,88 @@ public sealed class OpenAiCompatibleChatProviderTests
         string baseUrl = BaseUrl,
         string model = Model,
         bool streaming = true,
-        int timeoutSeconds = 30)
+        int timeoutSeconds = 30,
+        string providerId = ProviderCatalog.OpenAiId,
+        bool freeModelsOnly = false,
+        bool allowCloudInference = true)
     {
         var defaults = CapriDefaultSettings.Create();
         return defaults with
         {
             Provider = defaults.Provider with
             {
+                ProviderId = providerId,
                 BaseUrl = baseUrl,
                 ChatModel = model,
                 EnableStreaming = streaming,
                 RequestTimeoutSeconds = timeoutSeconds,
+                FreeModelsOnly = freeModelsOnly,
+                AllowCloudInference = allowCloudInference,
             },
         };
     }
 
-    private static ChatRequest Request(string content = "Hi", string? model = null)
+    private sealed class TrackingCredentialStore : ISecureCredentialStore
     {
-        return new ChatRequest([new ChatMessage(ChatRole.User, content)], ModelId: model);
+        private readonly FakeCredentialStore _inner = new();
+
+        public List<string> Gets { get; } = [];
+
+        public List<string> HasChecks { get; } = [];
+
+        public List<string> Sets { get; } = [];
+
+        public List<string> Deletes { get; } = [];
+
+        public Task<bool> HasAsync(string key, CancellationToken cancellationToken = default)
+        {
+            HasChecks.Add(key);
+            return _inner.HasAsync(key, cancellationToken);
+        }
+
+        public Task<string?> GetAsync(string key, CancellationToken cancellationToken = default)
+        {
+            Gets.Add(key);
+            return _inner.GetAsync(key, cancellationToken);
+        }
+
+        public Task SetAsync(string key, string value, CancellationToken cancellationToken = default)
+        {
+            Sets.Add(key);
+            return _inner.SetAsync(key, value, cancellationToken);
+        }
+
+        public Task DeleteAsync(string key, CancellationToken cancellationToken = default)
+        {
+            Deletes.Add(key);
+            return _inner.DeleteAsync(key, cancellationToken);
+        }
+
+        public Task SeedAsync(string key, string value)
+        {
+            return _inner.SetAsync(key, value);
+        }
+
+        public Task<string?> PeekAsync(string key)
+        {
+            return _inner.GetAsync(key);
+        }
+
+        public Task<bool> ContainsAsync(string key)
+        {
+            return _inner.HasAsync(key);
+        }
+    }
+
+    private static ChatRequest Request(
+        string content = "Hi",
+        string? model = null,
+        bool requireJsonObject = false)
+    {
+        return new ChatRequest(
+            [new ChatMessage(ChatRole.User, content)],
+            ModelId: model,
+            RequireJsonObject: requireJsonObject);
     }
 
     private static async Task<List<ChatDelta>> CollectAsync(IAsyncEnumerable<ChatDelta> stream)

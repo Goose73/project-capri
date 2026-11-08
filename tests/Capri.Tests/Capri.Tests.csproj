@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\src\Capri.Automation\Capri.Automation.csproj" />
     <ProjectReference Include="..\..\src\Capri.Voice\Capri.Voice.csproj" />
     <ProjectReference Include="..\..\src\Capri.Desktop\Capri.Desktop.csproj" />
+    <ProjectReference Include="..\..\src\Capri.Cli\Capri.Cli.csproj" />
   </ItemGroup>
 
   <ItemGroup>

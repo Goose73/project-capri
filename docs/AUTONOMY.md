@@ -1,18 +1,22 @@
-# `/task` autonomy slice (experimental, partial)
+﻿# `/task` autonomy slice (experimental, partial)
 
 This document describes the **experimental `/task` autonomy slice** implemented in the current local workspace. It is **not** a completed autonomy/request-fulfillment milestone.
 
 ## Status
 
-- **Milestone:** partial / experimental; **not full Phase 2 completion** (Phase 2 progress recorded **2026-11-08**).
-- **No live provider/planner production run with configured credential yet.** Recorded `config-status`: `provider=openai`, `model=gpt-4o-mini`, `credentialExists=false`, `base=https://api.openai.com/v1`; **no live AI** requests in recorded validation.
-- **No full vision fallback (Anthropic) implemented.** Screen vision is **architecture only** ([`SCREEN-CONTROL-PLAN.md`](SCREEN-CONTROL-PLAN.md)); **no implemented vision claim**.
-- **Git:** no commits/remote; **no push**.
-- Optional local artwork is excluded from the public repo. Running user app **never intentionally stopped**.
+- **Milestone:** partial / experimental; **not full Phase 2 completion**.
+- **Current verified state (2026-11-08, local publication prep):** **540/540 automated tests pass** (Release, 0 failed). **Release build succeeds (0 warnings/errors).** **Gitleaks 8.30.1** scan of publication candidates: **no leaks found**.
+- **M3 real local inference verified (CLI, no API key):** Ollama v0.40.9 with approved `qwen3:4b-instruct` (SHA verified). `capri models list/recommend/use`, `providers test` (actual inference, exit 0), and `capri ask` (genuine local response) verified. `capri chat` correctly refuses non-interactive stdin. This confirms the local model/inference path; it is **not** the same as a fully verified end-to-end desktop `/task` or terminal `capri task` autonomy flow.
+- **Terminal autonomy:** **`capri task` is not implemented (M4)**; CLI approval mechanism pending.
+- **WPF autonomy behavior (implemented in code):** route-aware budget/caps, `response_format json_object` hint when requested, and **exactly one bounded planner repair before approval only** (never after approval/dispatch). Existing fail-closed plan/approval/workspace/journal/no-replay constraints still apply.
+- **Not yet verified/complete:** interactive TTY `capri chat` multi-turn/streaming/Ctrl+C cancellation (manual Windows Terminal acceptance), desktop GUI regression in this slice, locally planned/approved desktop `/task` end-to-end acceptance as needed, M2 guided setup, wake-word/"Hey Capri", installer.
+- **Prior evidence (not re-run):** Windows-only mock-planner acceptance passed (`windowObserved=true`, mock planner, no live inference).
+- **No full vision fallback (Anthropic) implemented.** Screen vision is **architecture only** ([SCREEN-CONTROL-PLAN.md](SCREEN-CONTROL-PLAN.md)); **no implemented vision claim.**
+- Optional local artwork is excluded from the public repo. **Never copy OpenCode/browser tokens. No automatic model downloads by Capri.**
 
 ## Usage
 
-In chat input, prefix a request with `/task` (case-insensitive), followed by the task description:
+In the **desktop** chat input, prefix a request with `/task` (case-insensitive), followed by the task description:
 
 ```text
 /task create a note called plan.txt in the selected workspace with the text "hello"
@@ -27,108 +31,71 @@ Behavior (from `AssistantOrchestrator`):
   - `Failed`/`Cancelled` phase → `Failed` with the progress message.
 - If the task service is unavailable, the orchestrator reports `Task service unavailable.`
 
+**CLI:** `capri ask`/local inference are verified (M3), but **`capri task` (terminal autonomy) is not implemented (M4)**.
+
 Normal deterministic automation intents and chat streaming remain separate paths; model output is never parsed as automation intent.
 
 ## Exact tool list (planner grammar)
 
-The planner prompt requests **only** one JSON object with `steps` (1–8). `TaskPlanParser` accepts only these tools and enforces fail-closed validation:
+The planner prompt requests **only** one JSON object with `steps` (1-8). `TaskPlanParser` accepts only these tools and enforces fail-closed validation:
 
 | Planner tool | `TaskTool` | Target | Text | Notes / validation |
 |---|---|---|---|---|
-| `launch_app` | `LaunchApp` | `notepad` \| `calculator` \| `explorer` \| `paint` | not allowed | App must be in the fixed allowlist. Launch is **dispatch-only** (window not verified). |
-| `open_url` | `OpenUrl` | safe absolute HTTPS URL | not allowed | Must be absolute `https`, no userinfo, no `@`, no `\`, no whitespace. Dispatched to default browser; page not verified. |
-| `brave_search` | `BraveSearch` | query (≤ 200 chars) | not allowed | Uses Brave only if found in supported install locations; dispatched with encoded query to Brave Search; results not verified. If Brave unavailable, no search dispatched. |
-| `create_note` | `CreateNote` | flat `.txt` filename | required, literal text (≤ 4096 chars) | Requires approved workspace. Safe filename rules apply. Uses `FileMode.CreateNew` (no overwrite) and verifies contents on disk. **No UI typing claimed.** |
-| `open_note` | `OpenNote` | filename created earlier in the same plan | not allowed | Requires approved workspace and that the file was created earlier in the **same plan**. Opens via Notepad if available; editor contents not verified. Rejects reparse points/unavailable files. |
+| `launch_app` | `LaunchApp` | notepad/calculator/explorer/paint | not allowed | Fixed allowlist. Launch is **dispatch-only** (window not verified). |
+| `open_url` | `OpenUrl` | safe absolute HTTPS URL | not allowed | Absolute `https`, no userinfo/`@`/`\`/whitespace. Dispatched to default browser; page not verified. |
+| `brave_search` | `BraveSearch` | query (<= 200 chars) | not allowed | Uses Brave only if found in supported install locations; dispatched with encoded query to Brave Search; results not verified. |
+| `create_note` | `CreateNote` | flat `.txt` filename | required, literal (<= 4096 chars) | Requires approved workspace. `FileMode.CreateNew` (no overwrite) and verifies contents on disk. **No UI typing claimed.** |
+| `open_note` | `OpenNote` | filename created earlier in same plan | not allowed | Requires approved workspace and file created earlier in the **same plan**. Opens via Notepad if available; editor contents not verified. |
 
-Plan shape constraints: root object must contain only `steps`; each step allows only `tool`, `target`, and optional `text` (only for `create_note`); target is 1–2048 chars with no control chars; plan JSON is rejected if empty/too long (> 16000 chars); duplicate created note names rejected.
-
-If a request cannot be expressed with these tools, the planner is instructed to return `{"steps":[]}` (parser requires 1–8 steps, so an empty plan is treated as invalid/fail-closed by parsing rules).
+Plan shape constraints: root object must contain only `steps`; each step allows only `tool`, `target`, and optional `text` (only for `create_note`); fail-closed validation; duplicate created note names rejected.
 
 ## Approval
 
-`ITaskApproval.ApproveAsync` returns a selected existing disposable workspace for note plans, or `null` to deny.
+`ITaskApproval.ApproveAsync` returns a selected existing disposable workspace for note plans, or `null` to deny. WPF implementation (`WpfTaskApproval`) provides independent user decision (no remembered/model-supplied consent), warns to select an **existing, disposable folder for NEW note files only**, shows exact plan and exact note text, and offers **Approve exact plan** / **Deny**. Denial performs zero dispatched actions. Cancellation can throw `OperationCanceledException`.
 
-WPF implementation (`WpfTaskApproval`):
-- Marshals the complete permission flow onto the WPF dispatcher (independent user decision; no remembered or model-supplied consent).
-- For plans containing `CreateNote`/`OpenNote`, warns the user to select an **existing, disposable folder for NEW note files only** and never a folder containing important files; shows a folder picker (`OpenFolderDialog`). Cancel denies.
-- Shows a dedicated selectable, scrollable approval dialog with exact plan details and, for note steps, the **exact note text**.
-- Buttons: **Approve exact plan** / **Deny**. Denial performs zero dispatched actions.
-- Cancellation can close the dialog and throw `OperationCanceledException`.
-
-**Not yet demonstrated:** live provider-driven run with production WPF approval and real multi-step UI.
-
-### Windows-only acceptance harness (Phase 2 evidence, 2026-11-08)
-
-`tools/Capri.Acceptance` provides a **Windows-only** harness (runs separately from the production app; never acquires its mutex or stops its processes):
-- **Command/mode:** `Capri.Acceptance windows-only` (mock planner; real approval and Windows execution). **Mock planner clearly labeled** (`planner=mock-fixed-plan-not-live-inference`); no live inference, no credential inspection in this mode.
-- Uses normal parser/exact-plan gate, real `WpfTaskApproval`, `TaskCoordinator`, `SafeTaskExecutor`, and Windows observer.
-- **Final interactive run evidence (JSON):** **PASS, exit 0, phaseCompleted, approvalShown=true, diskVerified=true, windowObserved=true, workspaceCreated=true, timedOut=false**.
-- **Observed/confirmed:** real WPF confirmation was provided by the user; the exact new file was read back and a trusted Notepad title/package window was observed. This confirms window identity/presence, **not** editor contents or AI-generated content.
-- **Earlier runs (context):** initial run `Completed`, `approvalShown=true`, `diskVerified=true`, `windowObserved=false`, exit 1; after a modern Notepad handoff fix, approval waited twice and timed out (`Cancelled`, no disk/window observation).
-- **Fixes recorded:** `GetPackageFamilyName` handling corrected for a count that includes the terminating NUL; approval foreground/taskbar behavior and approval budget handling fixed; Notepad observation used official package family `Microsoft.WindowsNotepad_8wekyb3d8bbwe`, exact title, and HWND snapshot logic (`WindowObservation`/`SafeTaskExecutor`).
-- Recorded `config-status`: `provider=openai`, `model=gpt-4o-mini`, `credentialExists=false`, `base=https://api.openai.com/v1`; **no live AI** requests in this recorded validation. Result metadata excludes note text, destination, provider response, or credential.
+**Windows-only acceptance harness (prior milestone, preserved, not re-run):** `tools/Capri.Acceptance` `windows-only` used mock planner (clearly labeled, `planner=mock-fixed-plan-not-live-inference`, no live inference), real approval/coordinator/executor/observer. Final JSON evidence: **PASS, exit 0, phaseCompleted, approvalShown=true, diskVerified=true, windowObserved=true** (window identity/presence and exact file readback only; **not** editor contents/AI).
 
 ## Workspace
 
-- Workspace is selected by the user during approval for note plans; it is not invented by the model.
-- `TaskCoordinator` requires a selected, fully qualified workspace when any step is `CreateNote`/`OpenNote`.
-- `SafeTaskExecutor.NotePath` requires an approved, existing, fully qualified workspace and a safe note name; rejects directory traversal; rejects workspace paths where the root or any ancestor directory is a reparse point.
-- Workspace is used only for the bounded note operations implemented (`create_note`/`open_note`); it is not a general file-system grant.
+Workspace is selected by the user during approval for note plans (not invented by the model). `TaskCoordinator` requires a selected, fully qualified workspace for note steps. `SafeTaskExecutor` enforces safe filename/path rules and rejects workspace paths where root/ancestors are reparse points. Workspace is used only for bounded note operations.
 
 ## Stop / reset
 
-`TaskCoordinator` provides an emergency stop latch:
-- `Stop()` sets `_stopped = true` and increments `_stopGeneration`.
-- `ResetStop()` clears `_stopped` (does **not** change generation history for already-running tasks).
-- `IsStopped` exposes current latch state.
-- `CheckStop(generation, ct)` throws `OperationCanceledException("Emergency stop latched.")` if cancellation is requested, the stop latch is set, or the task's captured generation no longer matches.
-
-Reset cannot revive an already stopped task; a stopped task remains cancelled/fails closed for that run.
-
-**UI behavior/limits (`OverlayChatViewModel`):** `EmergencyStop` calls `TaskCoordinator.Stop()` and cancels the active chat/task turn, setting status to “Task STOP latched. Reset explicitly to allow tasks.” `ResetTaskStop` only calls `TaskCoordinator.ResetStop()` and sets status to “Task stop reset.” Because reset does not change generation history and the coordinator checks generation, reset **cannot revive an already stopped/cancelled task**; it only allows future task runs. Cancelled turns may show `(Cancelled)`/cancelled status in chat; external actions already dispatched may still have occurred.
+`TaskCoordinator.Stop()` latches and increments generation; `ResetStop()` clears the latch only. `CheckStop` fails closed if cancelled, latched, or generation mismatched. **Reset cannot revive an already stopped/cancelled task** (generation history unchanged). UI: `EmergencyStop` latches+cancels active turn; `ResetTaskStop` clears latch for future tasks only. Cancelled turns may show cancelled status; external actions already dispatched may still have occurred.
 
 ## Task metadata / journal
 
-`TaskMetadataJournal` (`ITaskJournal`, `Capri.Security`) records **metadata only**:
-- Stored fields: task `id` (GUID), `phase` (string), `stepIndex` (int), `updatedUtc`.
-- File: `task-latest.json` in `ICapriPaths.Root` (one bounded latest-state slot).
-- **No prompt, plan, target, text, or credentials** are stored.
-- Writes are atomic/same-directory replace: writes to a temporary file then `File.Move(..., overwrite: true)` with bounded retry on transient `IOException`/`UnauthorizedAccessException` (publish metadata only; never retry an external task action); temp cleanup on failure. This avoids leaving a partially written latest snapshot.
-- The journal records an in-flight executing step **before** dispatch.
-- Concurrent journal coverage is included in reported Phase 2 test evidence.
+`TaskMetadataJournal` records **metadata only**: task `id`, `phase`, `stepIndex`, `updatedUtc` in `task-latest.json` (one bounded latest-state slot). **No prompt, plan, target, text, or credentials** stored. Writes are atomic/same-directory replace (temp + move) with bounded retry on transient publish errors; never retry an external task action. Records in-flight executing step before dispatch.
 
 ## No replay
 
-- The journal is **never read for replay**.
-- Coordinator errors/cancellation paths emit “No automatic replay.”
-- There is no automatic retry, resume, or re-dispatch of journaled steps.
+The journal is **never read for replay**. Coordinator errors/cancellation emit "No automatic replay." No automatic retry, resume, or re-dispatch of journaled steps.
 
 ## Cancellation and failure caveats
 
-- Cancellation/failure do not replay steps.
-- **Cancellation may leave a created note** if `create_note` completed its file operation before cancellation was observed; **no automatic delete/rollback** is performed.
-- Launch/open/search actions are dispatch-only and not independently verified as completed UI outcomes.
-- Real disposable note create verification/no-overwrite was tested (see evidence below); broader real desktop multi-step behavior is not fully demonstrated.
+Cancellation/failure do not replay steps. **Cancellation may leave a created note** if `create_note` completed before cancellation was observed; **no automatic delete/rollback**. Launch/open/search actions are dispatch-only and not independently verified as completed UI outcomes. Real disposable note create verification/no-overwrite was tested in earlier evidence.
 
-## Evidence / checks (as reported)
+## Evidence / checks (reported/verified)
 
-- Baseline (independently reported): **296 passed**.
-- Tester actual (earlier): **324 pass** via `dotnet test Capri.sln -c Debug --no-restore -p:OutputPath=bin/AutonomyQA/` (run **before journal atomic fix**).
-- Security targeted fix build: **0 warnings, 0 errors**.
-- Real disposable note create verification/no-overwrite: **tested**.
-- **Phase 2 (2026-11-08):** baselines progressed **324 → 329 → 337 → 339**. **Final recorded result:** **339 tests passed**. Earlier Phase 2 evidence: **337** full-suite tests + **7** real in-process WPF approval tests repeated **3×** + concurrent journal coverage. Recorded debugger builds: **0** warnings/errors. Running user app **never intentionally stopped**.
-- **Windows-only acceptance (`Capri.Acceptance windows-only`, mock planner, `planner=mock-fixed-plan-not-live-inference`):** earlier runs showed `windowObserved=false` and later timeout/cancel. **Final interactive JSON evidence:** **PASS, exit 0, phaseCompleted, approvalShown=true, diskVerified=true, windowObserved=true, workspaceCreated=true, timedOut=false**. Real WPF confirmation was provided by the user; exact new file readback and a trusted Notepad title/package window were observed (**not** editor contents/AI).
-- **Fixes recorded:** `GetPackageFamilyName` count handling (terminating NUL); approval foreground/taskbar and budget handling; official package family `Microsoft.WindowsNotepad_8wekyb3d8bbwe`, exact title, HWND snapshot (`WindowObservation`/`SafeTaskExecutor`).
-- **Credentials/API (`config-status`):** `provider=openai`, `model=gpt-4o-mini`, `credentialExists=false`, `base=https://api.openai.com/v1`; **no live AI** requests in this recorded validation.
+- **Current (2026-11-08):** **540/540 automated tests pass** (Release, 0 failed). **Release 0 warnings/errors.** **Gitleaks 8.30.1 no leaks found** (publication candidates). Historical: 296 -> 324 -> 329 -> 337 -> 339 -> 417 -> 540.
+- **M3 real local CLI proof:** Ollama v0.40.9, `qwen3.5:4b` + `qwen3:4b-instruct` installed (approved pull, SHA verified). `capri models list/recommend/use`, `providers test` (actual inference, 1465 ms warm; probe text not matched exactly), `capri ask` genuine response (exit 0). `capri chat` refuses non-interactive stdin. Confirms local inference path; not full desktop `/task` or terminal `capri task` acceptance.
+- **Prior mock-planner acceptance (not re-run):** `Capri.Acceptance windows-only` PASS, `windowObserved=true` (mock planner, no live inference).
 
-> Numbers above are reported evidence for this slice; they are **not** a claim that full Phase 2 or all full-request autonomy behavior is complete or production-validated.
+> Numbers above are reported/verified evidence for specific slices; they are **not** a claim that full Phase 2 or all full-request autonomy behavior is complete or production-validated.
+- **Desktop `/task` acceptance as needed:** real local model is verified via CLI; locally planned/approved WPF `/task` end-to-end demonstration may still need explicit acceptance.
+- **M2 guided setup:** not implemented.
+- **Local inference timeouts:** `providers test`/cold local inference can hit 60s default; local timeout may need tuning (300s used for local testing).
+- Broader repeatable verification for dispatch-only actions; full vision fallback (Anthropic) remains unimplemented (screen vision **architecture only**).
+- Cloud validation optional/explicit consent: OpenRouter/OpenAI can incur charges; OpenRouter off by default, `:free` heuristic guards apply but verify pricing. **Never copy OpenCode/browser tokens.**
+- Not implemented: hardware/model download wizard, LM Studio loaded-model metadata, automatic fallback routing UI beyond guards, Sign in with ChatGPT official integration, wake-word/"Hey Capri", installer. Desktop GUI regression not re-run in this slice.
 
 ## Blockers / follow-ups
 
-- Live LLM provider/planner run through `/task` with configured credential and real multi-step UI demonstration. Current recorded `config-status`: `provider=openai`, `model=gpt-4o-mini`, `credentialExists=false`, `base=https://api.openai.com/v1`, **no live AI**.
-- **Exact settings for live API setup (tray UI):** **Settings → AI providers** → Base URL `https://api.openai.com/v1` → supported model such as `gpt-4o-mini` → enter API key in the **PasswordBox** → **Save** → **Test Connection** (health/connection check only; does **not** run the `/task` planner). Never ask for or share API keys in chat; never include credentials in docs/source. **ChatGPT Plus is not the same as API access**.
-- Broader, repeatable verification for dispatch-only actions across scenarios (windows/browser/results), beyond the specific recorded Notepad observation case.
-- Full vision fallback (Anthropic) remains unimplemented; screen vision is **architecture only** ([`SCREEN-CONTROL-PLAN.md`](SCREEN-CONTROL-PLAN.md)).
-- Normal Debug output may be locked by a running app; alternate builds/outputs are used only for current validation.
-- **Git:** no commits/remote; **no push**. Re-run/record evidence as needed for release decisions; do not treat recorded progress as full Phase 2 completion.
+- **M4 terminal autonomy:** implement `capri task` with explicit CLI approval/workspace/stop controls (CLI approval mechanism pending).
+- **Manual CLI acceptance:** interactive TTY `capri chat` multi-turn, streaming UX, Ctrl+C in-session generation cancellation (Windows Terminal).
+- **Desktop `/task` acceptance as needed:** real local model verified via CLI; locally planned/approved WPF `/task` end-to-end demonstration may still need explicit acceptance.
+- **M2 guided setup:** not implemented.
+- **Local inference timeouts:** `providers test`/cold local inference can hit 60s default; local timeout may need tuning (300s used for local testing).
+- Broader repeatable verification for dispatch-only actions; full vision fallback (Anthropic) remains unimplemented (screen vision **architecture only**).
+- Cloud validation optional/explicit consent: OpenRouter/OpenAI can incur charges; OpenRouter off by default, `:free` heuristic guards apply but verify pricing. **Never copy OpenCode/browser tokens.**
+- Not implemented: hardware/model download wizard, LM Studio loaded-model metadata, automatic fallback routing UI beyond guards, Sign in with ChatGPT official integration, wake-word/"Hey Capri", installer. Desktop GUI regression not re-run in this slice.

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Capri.Core.Abstractions;
 using Capri.Core.Models;
+using Capri.Core.Providers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -189,14 +190,17 @@ public sealed partial class JsonAppSettingsStore : IAppSettingsStore, IDisposabl
     private static AppSettings Normalize(AppSettings settings)
     {
         var provider = settings.Provider ?? new AppSettings.ProviderSettings();
+        var migratingToCurrentSchema = settings.SchemaVersion < CapriDefaultSettings.CurrentSchemaVersion;
+
+        var providerId = NormalizeProviderId(provider.ProviderId, provider.BaseUrl);
+        var baseUrl = string.IsNullOrWhiteSpace(provider.BaseUrl)
+            ? CapriDefaultSettings.GetDefaultBaseUrl(providerId)
+            : provider.BaseUrl.Trim();
+
         var normalizedProvider = provider with
         {
-            ProviderId = string.IsNullOrWhiteSpace(provider.ProviderId)
-                ? CapriDefaultSettings.DefaultProviderId
-                : provider.ProviderId.Trim(),
-            BaseUrl = string.IsNullOrWhiteSpace(provider.BaseUrl)
-                ? CapriDefaultSettings.DefaultBaseUrl
-                : provider.BaseUrl.Trim(),
+            ProviderId = providerId,
+            BaseUrl = baseUrl,
             ChatModel = string.IsNullOrWhiteSpace(provider.ChatModel)
                 ? CapriDefaultSettings.DefaultModelId
                 : provider.ChatModel.Trim(),
@@ -209,12 +213,41 @@ public sealed partial class JsonAppSettingsStore : IAppSettingsStore, IDisposabl
             RequestTimeoutSeconds = provider.RequestTimeoutSeconds > 0
                 ? provider.RequestTimeoutSeconds
                 : CapriDefaultSettings.DefaultRequestTimeoutSeconds,
+            // Version 2 additions. Migration establishes the safe defaults;
+            // existing version 2 values are preserved unchanged.
+            FreeModelsOnly = migratingToCurrentSchema || provider.FreeModelsOnly,
+            AllowCloudInference = !migratingToCurrentSchema && provider.AllowCloudInference,
+            CloudConsentRecordedUtc = migratingToCurrentSchema
+                ? null
+                : provider.CloudConsentRecordedUtc,
         };
 
         return settings with
         {
-            SchemaVersion = settings.SchemaVersion > 0 ? settings.SchemaVersion : 1,
+            SchemaVersion = migratingToCurrentSchema
+                ? CapriDefaultSettings.CurrentSchemaVersion
+                : settings.SchemaVersion,
             Provider = normalizedProvider,
         };
+    }
+
+    /// <summary>
+    /// Resolves the provider identifier without discarding a custom base URL.
+    /// Known identifiers are canonicalized; unknown identifiers fall back to
+    /// the legacy default. A blank identifier is inferred from a catalog base
+    /// URL when possible, otherwise it also falls back to the legacy default.
+    /// </summary>
+    private static string NormalizeProviderId(string? providerId, string? baseUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(providerId))
+        {
+            return ProviderCatalog.TryGetById(providerId.Trim(), out var knownProfile)
+                ? knownProfile.Id
+                : CapriDefaultSettings.DefaultProviderId;
+        }
+
+        return ProviderCatalog.TryGetByBaseUrl(baseUrl, out var inferredProfile)
+            ? inferredProfile.Id
+            : CapriDefaultSettings.DefaultProviderId;
     }
 }

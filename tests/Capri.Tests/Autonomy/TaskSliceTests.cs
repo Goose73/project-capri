@@ -88,6 +88,119 @@ public sealed class TaskSliceTests
     }
 
     [Fact]
+    public async Task MalformedFirstPlanIsRepairedExactlyOnceBeforeApproval()
+    {
+        const string validPlan = "{\"steps\":[{\"tool\":\"launch_app\",\"target\":\"notepad\"}]}";
+        var responses = new Queue<string>(["not json", validPlan]);
+        var order = new List<string>();
+        var provider = Substitute.For<IChatProvider>();
+        provider.CompleteAsync(Arg.Any<ChatRequest>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                order.Add("planner");
+                return Task.FromResult(new ChatCompletion(
+                    new ChatMessage(ChatRole.Assistant, responses.Dequeue())));
+            });
+        var router = Substitute.For<IModelRouter>();
+        router.ResolveAsync(Arg.Any<ModelRouteRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new ModelRoute("fake", "fake"));
+        var approval = Substitute.For<ITaskApproval>();
+        approval.ApproveAsync(Arg.Any<TaskPlan>(), Arg.Any<CancellationToken>())
+            .Returns(_ => { order.Add("approve"); return Task.FromResult<string?>(""); });
+        var executor = Substitute.For<ITaskExecutor>();
+        executor.ExecuteAsync(Arg.Any<TaskStep>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                order.Add("execute");
+                return Task.FromResult(new TaskOutcome(true, true, "ok"));
+            });
+        var coordinator = new TaskCoordinator(
+            provider, router, approval, executor, Substitute.For<ITaskJournal>());
+
+        var events = await Collect(coordinator.RunAsync("launch notepad"));
+
+        Assert.Equal(TaskPhase.Completed, events[^1].Phase);
+        Assert.Equal(4, order.Count);
+        Assert.Equal("planner", order[0]);
+        Assert.Equal("planner", order[1]);
+        Assert.Equal("approve", order[2]);
+        Assert.Equal("execute", order[3]);
+        Assert.Contains(events, e => e.Phase == TaskPhase.Planning
+            && e.Message.Contains("repair", StringComparison.OrdinalIgnoreCase));
+        await provider.Received(2).CompleteAsync(Arg.Any<ChatRequest>(), Arg.Any<CancellationToken>());
+        await approval.Received(1).ApproveAsync(Arg.Any<TaskPlan>(), Arg.Any<CancellationToken>());
+        await executor.Received(1).ExecuteAsync(Arg.Any<TaskStep>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task MalformedInitialAndRepairResponsesFailWithoutApprovalOrDispatch()
+    {
+        var provider = Substitute.For<IChatProvider>();
+        provider.CompleteAsync(Arg.Any<ChatRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new ChatCompletion(
+                new ChatMessage(ChatRole.Assistant, "not json"))));
+        var router = Substitute.For<IModelRouter>();
+        router.ResolveAsync(Arg.Any<ModelRouteRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new ModelRoute("fake", "fake"));
+        var approval = Substitute.For<ITaskApproval>();
+        var executor = Substitute.For<ITaskExecutor>();
+        var coordinator = new TaskCoordinator(
+            provider, router, approval, executor, Substitute.For<ITaskJournal>());
+
+        var events = await Collect(coordinator.RunAsync("launch notepad"));
+
+        Assert.Equal(TaskPhase.Failed, events[^1].Phase);
+        Assert.Contains(events, e => e.Phase == TaskPhase.Planning
+            && e.Message.Contains("repair", StringComparison.OrdinalIgnoreCase));
+        await provider.Received(2).CompleteAsync(Arg.Any<ChatRequest>(), Arg.Any<CancellationToken>());
+        await approval.DidNotReceiveWithAnyArgs().ApproveAsync(default!, default);
+        await executor.DidNotReceiveWithAnyArgs().ExecuteAsync(default!, default, default);
+    }
+
+    [Fact]
+    public async Task RepairNeverHappensAfterApprovalOrDispatch()
+    {
+        const string validPlan = "{\"steps\":[{\"tool\":\"launch_app\",\"target\":\"notepad\"}]}";
+        var order = new List<string>();
+        var provider = Substitute.For<IChatProvider>();
+        provider.CompleteAsync(Arg.Any<ChatRequest>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                order.Add("planner");
+                return Task.FromResult(new ChatCompletion(
+                    new ChatMessage(ChatRole.Assistant, validPlan)));
+            });
+        var router = Substitute.For<IModelRouter>();
+        router.ResolveAsync(Arg.Any<ModelRouteRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new ModelRoute("fake", "fake"));
+        var approval = Substitute.For<ITaskApproval>();
+        approval.ApproveAsync(Arg.Any<TaskPlan>(), Arg.Any<CancellationToken>())
+            .Returns(_ => { order.Add("approve"); return Task.FromResult<string?>(""); });
+        var executor = Substitute.For<ITaskExecutor>();
+        executor.ExecuteAsync(Arg.Any<TaskStep>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                order.Add("execute");
+                // Force a post-dispatch failure: repair must still never run.
+                return Task.FromResult(new TaskOutcome(false, false, "failed"));
+            });
+        var coordinator = new TaskCoordinator(
+            provider, router, approval, executor, Substitute.For<ITaskJournal>());
+
+        var events = await Collect(coordinator.RunAsync("launch notepad"));
+
+        Assert.Equal(TaskPhase.Failed, events[^1].Phase);
+        Assert.Equal(3, order.Count);
+        Assert.Equal("planner", order[0]);
+        Assert.Equal("approve", order[1]);
+        Assert.Equal("execute", order[2]);
+        Assert.DoesNotContain(events, e => e.Message.Contains("repair", StringComparison.OrdinalIgnoreCase));
+        await provider.Received(1).CompleteAsync(Arg.Any<ChatRequest>(), Arg.Any<CancellationToken>());
+        await approval.Received(1).ApproveAsync(Arg.Any<TaskPlan>(), Arg.Any<CancellationToken>());
+        await executor.Received(1).ExecuteAsync(Arg.Any<TaskStep>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task MalformedPlannerResponseDoesNotRequestApproval()
     {
         var approval = Substitute.For<ITaskApproval>();

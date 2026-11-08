@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Capri.Cli</RootNamespace>
+    <!-- The executable is named capri.exe so `capri` works when the CLI output
+         directory is on PATH. The .NET assembly is still identified by its
+         project name in builds and tests. -->
+    <AssemblyName>capri</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Provides ServiceCollection/DI host plumbing already used by the desktop
+         composition root. No new package versions are introduced. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Capri.Core\Capri.Core.csproj" />
+    <ProjectReference Include="..\Capri.Providers\Capri.Providers.csproj" />
+    <ProjectReference Include="..\Capri.Security\Capri.Security.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -134,13 +134,115 @@ public sealed class JsonAppSettingsStoreTests
 
         await store.UpdateAsync(sparse);
 
-        Assert.Equal(1, store.Current.SchemaVersion);
+        Assert.Equal(2, store.Current.SchemaVersion);
         Assert.Equal(CapriDefaultSettings.DefaultProviderId, store.Current.Provider.ProviderId);
         Assert.Equal(CapriDefaultSettings.DefaultBaseUrl, store.Current.Provider.BaseUrl);
         Assert.Equal(CapriDefaultSettings.DefaultModelId, store.Current.Provider.ChatModel);
         Assert.Equal(CapriDefaultSettings.DefaultTemperature, store.Current.Provider.Temperature);
         Assert.Equal(CapriDefaultSettings.DefaultMaxOutputTokens, store.Current.Provider.MaxOutputTokens);
         Assert.Equal(CapriDefaultSettings.DefaultRequestTimeoutSeconds, store.Current.Provider.RequestTimeoutSeconds);
+    }
+
+    [Fact]
+    public async Task SchemaV1SettingsMigrateToV2PreservingCustomProviderValues()
+    {
+        using var temp = new TempDirectory();
+        var paths = new CapriPaths(temp.Path);
+        const string v1Json = """
+            {
+              "schemaVersion": 1,
+              "provider": {
+                "providerId": "openai",
+                "baseUrl": "https://gateway.example.test/v1",
+                "chatModel": "custom-model",
+                "enableStreaming": false,
+                "temperature": 0.2,
+                "maxOutputTokens": 512,
+                "requestTimeoutSeconds": 45
+              }
+            }
+            """;
+        await File.WriteAllTextAsync(paths.SettingsFile, v1Json);
+
+        using var store = new JsonAppSettingsStore(paths);
+
+        Assert.Equal(2, store.Current.SchemaVersion);
+        Assert.Equal("openai", store.Current.Provider.ProviderId);
+        Assert.Equal("https://gateway.example.test/v1", store.Current.Provider.BaseUrl);
+        Assert.Equal("custom-model", store.Current.Provider.ChatModel);
+        Assert.False(store.Current.Provider.EnableStreaming);
+        Assert.Equal(0.2, store.Current.Provider.Temperature);
+        Assert.Equal(512, store.Current.Provider.MaxOutputTokens);
+        Assert.Equal(45, store.Current.Provider.RequestTimeoutSeconds);
+        Assert.True(store.Current.Provider.FreeModelsOnly);
+        Assert.False(store.Current.Provider.AllowCloudInference);
+        Assert.Null(store.Current.Provider.CloudConsentRecordedUtc);
+
+        // Loading must migrate in memory only and must never rewrite the file.
+        Assert.Equal(v1Json, await File.ReadAllTextAsync(paths.SettingsFile));
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("my-custom-provider")]
+    public async Task SchemaV1SettingsWithBlankOrUnknownProviderUseCanonicalFallbackWithoutRewritingCustomValues(
+        string providerId)
+    {
+        using var temp = new TempDirectory();
+        var paths = new CapriPaths(temp.Path);
+        var v1Json = $$"""
+            {
+              "schemaVersion": 1,
+              "provider": {
+                "providerId": {{JsonSerializer.Serialize(providerId)}},
+                "baseUrl": "http://192.168.1.50:8080/v1",
+                "chatModel": "house-model"
+              }
+            }
+            """;
+        await File.WriteAllTextAsync(paths.SettingsFile, v1Json);
+
+        using var store = new JsonAppSettingsStore(paths);
+
+        Assert.Equal(2, store.Current.SchemaVersion);
+        Assert.Equal(CapriDefaultSettings.DefaultProviderId, store.Current.Provider.ProviderId);
+        Assert.Equal("http://192.168.1.50:8080/v1", store.Current.Provider.BaseUrl);
+        Assert.Equal("house-model", store.Current.Provider.ChatModel);
+        Assert.True(store.Current.Provider.FreeModelsOnly);
+        Assert.False(store.Current.Provider.AllowCloudInference);
+    }
+
+    [Fact]
+    public async Task SchemaV1MigrationIsIdempotent()
+    {
+        using var temp = new TempDirectory();
+        var paths = new CapriPaths(temp.Path);
+        const string v1Json = """
+            {
+              "schemaVersion": 1,
+              "provider": {
+                "providerId": "lmstudio",
+                "baseUrl": "http://127.0.0.1:1234/v1",
+                "chatModel": "local-model"
+              }
+            }
+            """;
+        await File.WriteAllTextAsync(paths.SettingsFile, v1Json);
+
+        using var store = new JsonAppSettingsStore(paths);
+        var migrated = store.Current;
+
+        // Reloading the still-v1 file produces the exact same snapshot.
+        await store.ReloadAsync();
+        Assert.Equal(migrated, store.Current);
+
+        // Persisting the migrated snapshot and reopening it changes nothing.
+        await store.UpdateAsync(migrated);
+        using var reopened = new JsonAppSettingsStore(paths);
+        Assert.Equal(migrated, reopened.Current);
+        Assert.Equal(2, reopened.Current.SchemaVersion);
+        Assert.Equal("lmstudio", reopened.Current.Provider.ProviderId);
+        Assert.Equal("local-model", reopened.Current.Provider.ChatModel);
     }
 
     [Fact]

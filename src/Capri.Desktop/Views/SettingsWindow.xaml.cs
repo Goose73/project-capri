@@ -13,6 +13,8 @@ public partial class SettingsWindow : Window
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         InitializeComponent();
         DataContext = _viewModel;
+        _viewModel.PendingApiKeyCleared += ViewModel_PendingApiKeyCleared;
+        Closed += SettingsWindow_Closed;
     }
 
     public async Task InitializeAsync()
@@ -24,6 +26,23 @@ public partial class SettingsWindow : Window
 
         await _viewModel.LoadAsync();
         _initialized = true;
+    }
+
+    private void SettingsWindow_Closed(object? sender, EventArgs e)
+    {
+        _viewModel.PendingApiKeyCleared -= ViewModel_PendingApiKeyCleared;
+    }
+
+    private void ViewModel_PendingApiKeyCleared(object? sender, EventArgs e)
+    {
+        // Profile switches may complete on a background continuation; never touch WPF controls off-thread.
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(new Action(ApiKeyBox.Clear));
+            return;
+        }
+
+        ApiKeyBox.Clear();
     }
 
     private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)

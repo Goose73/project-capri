@@ -98,12 +98,31 @@
                     </Expander.Header>
                     <Border Background="{StaticResource Surface2}" CornerRadius="8" Padding="12" Margin="0,4,0,0">
                         <StackPanel>
+                            <TextBlock Text="Provider preset" Foreground="{StaticResource Dim}"/>
+                            <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}" DisplayMemberPath="DisplayName"/>
                             <TextBlock Text="Provider ID" Foreground="{StaticResource Dim}"/>
-                            <TextBox Text="{Binding ProviderId, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding ProviderId, UpdateSourceTrigger=LostFocus}"/>
                             <TextBlock Text="Base URL" Foreground="{StaticResource Dim}"/>
                             <TextBox Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}"/>
                             <TextBlock Text="Model" Foreground="{StaticResource Dim}"/>
                             <TextBox Text="{Binding ChatModel, UpdateSourceTrigger=PropertyChanged}"/>
+                            <DockPanel Margin="0,0,0,4">
+                                <Button Content="Refresh models" Command="{Binding RefreshModelsCommand}" Padding="8,2" DockPanel.Dock="Right"
+                                        Margin="8,0,0,0"/>
+                                <TextBlock Text="Discovered models (selectable list)" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <ComboBox ItemsSource="{Binding AvailableModels}" SelectedItem="{Binding SelectedDiscoveredModel}"/>
+                            <TextBlock Text="{Binding ModelDiscoveryStatus}" Foreground="{StaticResource Blue}" FontSize="11" Margin="0,0,0,8"/>
+                            <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1"
+                                    CornerRadius="6" Padding="8" Margin="0,2,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="Cloud consent and free-only safety" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                    <CheckBox Content="Allow cloud inference (explicit consent)" IsChecked="{Binding AllowCloudInference}"/>
+                                    <CheckBox Content="Free models only (never auto-select a paid model)" IsChecked="{Binding FreeModelsOnly}"/>
+                                    <TextBlock Text="{Binding CloudConsentWarning}" Foreground="#FFB347" FontWeight="SemiBold" Margin="0,2,0,2"/>
+                                    <TextBlock Text="{Binding FreeModelsOnlyHint}" Foreground="#FFB347" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </Border>
                             <CheckBox Content="Enable streaming" IsChecked="{Binding EnableStreaming}"/>
                             <UniformGrid Columns="2" Margin="0,0,0,0">
                                 <StackPanel Margin="0,0,8,0">
@@ -117,14 +136,15 @@
                             </UniformGrid>
                             <TextBlock Text="Request timeout (seconds)" Foreground="{StaticResource Dim}"/>
                             <TextBox Text="{Binding RequestTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>
-                            <TextBlock Text="API key (stored securely)" FontWeight="SemiBold"/>
-                            <PasswordBox x:Name="ApiKeyBox" Margin="0,2,0,4" PasswordChanged="ApiKeyBox_PasswordChanged"/>
+                            <TextBlock Text="API key (stored securely per provider profile)" FontWeight="SemiBold"/>
+                            <PasswordBox x:Name="ApiKeyBox" Margin="0,2,0,4" IsEnabled="{Binding CanEditApiKey}"
+                                         PasswordChanged="ApiKeyBox_PasswordChanged"/>
                             <DockPanel Margin="0,0,0,4">
                                 <Button Content="Clear stored key" Command="{Binding ClearApiKeyCommand}" Padding="8,2" DockPanel.Dock="Right"
-                                        Click="ClearStoredKeyButton_Click"/>
+                                        IsEnabled="{Binding CanEditApiKey}" Click="ClearStoredKeyButton_Click"/>
                                 <TextBlock Text="{Binding ApiKeyStatus}" VerticalAlignment="Center" Foreground="{StaticResource Blue}"/>
                             </DockPanel>
-                            <TextBlock Text="Leave blank to keep the current stored key unchanged." FontSize="11" Foreground="{StaticResource Dim}"/>
+                            <TextBlock Text="{Binding ApiKeyHelpText}" FontSize="11" Foreground="{StaticResource Dim}"/>
                         </StackPanel>
                     </Border>
                 </Expander>
@@ -216,7 +236,10 @@
 
                 <Border Background="{StaticResource Surface}" CornerRadius="8" Padding="10" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1">
                     <StackPanel>
-                        <TextBlock Text="{Binding TestConnectionStatus}" Foreground="{StaticResource Green}" Margin="0,0,0,4"/>
+                        <TextBlock Text="Health check (connectivity only)" FontSize="11" Foreground="{StaticResource Dim}"/>
+                        <TextBlock Text="{Binding TestConnectionStatus}" Foreground="{StaticResource Green}" Margin="0,0,0,6"/>
+                        <TextBlock Text="Inference test (real chat request)" FontSize="11" Foreground="{StaticResource Dim}"/>
+                        <TextBlock Text="{Binding TestInferenceStatus}" Foreground="{StaticResource Green}" Margin="0,0,0,6"/>
                         <TextBlock Text="{Binding SaveStatus}" Foreground="{StaticResource Blue}"/>
                     </StackPanel>
                 </Border>
@@ -225,7 +248,8 @@
 
         <Border Grid.Row="1" Background="#15131C" BorderBrush="#33FF176C" BorderThickness="0,1,0,0" Padding="16,10">
             <WrapPanel HorizontalAlignment="Right">
-                <Button Content="Test Connection" Command="{Binding TestConnectionCommand}" Margin="0,0,8,0"/>
+                <Button Content="Check connection (health only)" Command="{Binding TestConnectionCommand}" Margin="0,0,8,0"/>
+                <Button Content="Test inference" Command="{Binding TestInferenceCommand}" Margin="0,0,8,0"/>
                 <Button Content="Save" Margin="0,0,8,0" Click="SaveButton_Click" BorderBrush="{StaticResource Magenta}"/>
                 <Button Content="Cancel" IsCancel="True"/>
             </WrapPanel>

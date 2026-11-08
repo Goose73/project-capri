@@ -1,27 +1,25 @@
-# Roadmap
+﻿# Roadmap
 
 Project Capri is an AI-powered Windows desktop companion (C# / WPF / .NET 10). This roadmap reflects **current** priorities and may change.
 
 ## Current focus
-- [ ] **Desktop companion & overlay polish** — idle artwork integrated locally as an optional gitignored asset; overlay sizing/position/persistence/monitor-DPI improvements implemented and locally verified. *Needs manual multi-monitor/DPI/hit-test confirmation.* Optional local artwork is excluded from the public repo.
-- [ ] **Avatar expressions & animations** — plan lightweight blinking/talking/thinking/listening animations that preserve the established character appearance (no unrelated expression artwork generation).
-- [ ] **`/task` autonomy slice (experimental, partial) — Phase 2 progress recorded 2026-11-08, not full Phase 2 completion** — implemented local slice plus Windows-only validation evidence. Exact tool allowlist/planner grammar, independent WPF approval/workspace selection, stop/reset latch (UI controls exist; reset cannot revive an already stopped/cancelled task), metadata-only atomic journal (bounded retries), no replay. Reported tests: **324 → 329 → 337 → 339**; final recorded result **339 tests passed**. Earlier evidence: **337** full suite passed; **7** real in-process WPF approval tests repeated **3×**; concurrent journals covered; recorded debugger builds **0** warnings/errors. `tools/Capri.Acceptance` `windows-only` (mock planner, clearly labeled, `planner=mock-fixed-plan-not-live-inference`): earlier runs showed `windowObserved=false` then timeout/cancel; final interactive JSON evidence **PASS, exit 0, phaseCompleted, approvalShown=true, diskVerified=true, windowObserved=true, workspaceCreated=true, timedOut=false**. Real WPF confirmation was provided by the user; exact new file readback and a trusted Notepad title/package window were observed (**not** editor contents/AI). Fixes recorded: `GetPackageFamilyName` count handling (terminating NUL), approval foreground/taskbar/budget handling, official package family `Microsoft.WindowsNotepad_8wekyb3d8bbwe` + exact title + HWND snapshot. **Still not full Phase 2 completion:** no live provider/planner production run with configured credential (`config-status`: `provider=openai`, `model=gpt-4o-mini`, `credentialExists=false`, `base=https://api.openai.com/v1`, **no live AI**); dispatch-only actions not independently UI-verified beyond specific observed cases; cancellation may leave a created note (no automatic delete); no full vision fallback (Anthropic). Running user app never intentionally stopped. Git: no commits/remote, **no push**. See [docs/AUTONOMY.md](docs/AUTONOMY.md).
+- [x] **Free/local AI live validation (M3 verified, 2026-11-08)** - M1-M6 catalog implemented. Real local proof (Ollama v0.40.9, no API key): approved `ollama pull qwen3:4b-instruct` completed (~2.5 GB, SHA verified). Installed: `qwen3.5:4b`, `qwen3:4b-instruct`.
+  CLI verified (exit 0): `capri models list`, `models recommend`, `models use qwen3:4b-instruct` (persisted), `providers test` (actual inference, 1465 ms warm; probe text not matched exactly), `capri ask "What is Project Capri?"` (genuine local response). `capri chat` correctly refuses non-interactive stdin. Fix: CLI model-management targets local Ollama when active provider is not Ollama. **540/540 tests pass (Release, 0 failed), Release build 0 warnings/errors, Gitleaks 8.30.1 no leaks found.**
+- [x] **CLI Milestone 1 + M3 (partial, verified core path)** - `capri start/ask/chat/status/logs/providers test/models list|recommend|use|pull|remove`. Pending manual acceptance: interactive TTY `capri chat` multi-turn, streaming UX, Ctrl+C in-session generation cancellation (Windows Terminal). `providers test`/cold local inference may need timeout tuning (300s used locally vs 60s default).
+- [ ] **M4 terminal autonomy (not implemented)** - `capri task` with explicit CLI approval/workspace/stop controls; CLI approval mechanism pending.
+- [ ] **M2 guided setup (not implemented)** - first-run/provider/model setup flow.
+- [ ] **WPF `/task` autonomy slice (experimental, partial)** - not full Phase 2 completion. Route-aware budget/caps, `response_format json_object` hint, exactly one bounded planner repair before approval only. Real local model inference verified via CLI; locally planned/approved desktop `/task` end-to-end acceptance may still be needed. Prior mock-planner Windows acceptance passed (`windowObserved=true`, not re-run). Still needed: stronger dispatch-only verification, full vision fallback (Anthropic). Cancellation may leave a created note; reset cannot revive stopped/cancelled task.
+- [ ] **Desktop companion & overlay polish** - needs manual multi-monitor/DPI/hit-test confirmation. Desktop GUI regression not re-run in this slice.
+- [ ] **Avatar expressions & animations** - lightweight blinking/talking/thinking/listening preserving established character appearance.
 
 ## Planned
-- [ ] **Voice recognition & speech synthesis** — local/lightweight options preferred; clear mic indicators.
-- [ ] **Wake-word detection** — “Hey Capri” (optional).
-- [ ] **AI provider integrations & model fallback** — capability-aware routing/fallback (OpenAI-compatible, Anthropic, Gemini, OpenRouter adapters as configured; Ollama/LM Studio); verify fallback behavior.
-- [ ] **`/task` live validation & autonomy expansion** — live provider/planner run with configured credential and real multi-step UI demo (`config-status` currently: `provider=openai`, `model=gpt-4o-mini`, `credentialExists=false`, `base=https://api.openai.com/v1`, **no live AI**). Settings path: tray **Settings → AI providers** → Base URL `https://api.openai.com/v1`, supported model such as `gpt-4o-mini`, API key in PasswordBox, **Save**, **Test Connection** (health only, not planner). Never share API keys in chat; ChatGPT Plus is not the same as API access. Stronger outcome verification for dispatch-only actions; broader safe tool registry; full vision fallback (Anthropic) where appropriate.
-- [ ] **Windows screen recognition & control** — **architecture only** in [`docs/SCREEN-CONTROL-PLAN.md`](docs/SCREEN-CONTROL-PLAN.md): UIA-first, sensitive exclusions, explicit capture consent, untrusted observations, typed tool permissions (verify/cancel, no replay). **No implemented vision claim.** Future work: permissioned capture + vision model integration.
-- [ ] **Mouse & keyboard automation** — permission-controlled, observe→plan→act→verify; typed tool registry.
-- [ ] **Brave/browser integration** — open/search/navigate/summarize with consent; no credential capture.
-- [ ] **Media controls** — expand from current media-key baseline as needed.
-- [ ] **Settings & customization** — personality, voice/avatar packs (user-provided/licensed), startup prefs, appearance.
-- [ ] **Security & permissions** — audit history, per-tool permissions, confirmations, emergency stop.
-- [ ] **Performance optimization** — low idle CPU/GPU; optional local models with hardware estimates.
-- [ ] **Windows installer & release** — packaging, docs, release-readiness review. Git has **no commits/remote** and **no push**.
+- [ ] **Voice recognition & speech synthesis** - local/lightweight options preferred; clear mic indicators.
+- [ ] **Wake-word detection** - "Hey Capri" (optional; not implemented/validated).
+- [ ] **Provider expansion & verified fallback routing** - beyond implemented presets: Anthropic/Gemini adapters, capability-aware fallback/routing UI beyond current guards, LM Studio loaded-model metadata. **No automatic model downloads by Capri.**
+- [ ] **Cloud provider live validation (explicit consent; avoid surprise charges)** - OpenRouter/OpenAI require keys and can incur charges. OpenRouter off by default; FreeModelsOnly default true and `:free` heuristic guards apply, but verify model/pricing. **No live cloud verification in this change set.**
+- [ ] **Desktop release packaging & installer** (not built).
 
-## Completed foundations
-- [x] Phase 1 MVP foundation: WPF tray/companion, chat, OpenAI-compatible provider integration, DPAPI credential storage, settings, local automation intents, test suite.
-- [x] Image-backed sprite renderer with placeholder fallback (optional local artwork excluded from the public repo).
-- [x] Idle artwork integrated locally as an optional gitignored asset; overlay polish pass implemented.
+## Completed (evidence-based milestones)
+- [x] **CLI Milestone 1 + M3 core local inference** - real Ollama model management and terminal inference verified (2026-11-08); 540/540 tests (Release).
+- [x] **M1-M6 provider catalog/autonomy hardening implementation** - schema v2, profile-specific credentials, fail-closed local auth, consent/free-only guards, health vs inference, model discovery (2026-11-08).
+- [x] **Phase 1 MVP foundation** - WPF companion, OpenAI-compatible chat, DPAPI settings, local automation intents, automated tests (local milestone; see changelog).

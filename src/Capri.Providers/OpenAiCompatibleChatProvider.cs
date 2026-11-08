@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Capri.Core.Abstractions;
 using Capri.Core.Models;
+using Capri.Core.Providers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -25,10 +26,12 @@ public sealed partial class OpenAiCompatibleChatProvider : IChatProvider
     public const string HttpClientName = "capri.openai-compatible";
 
     /// <summary>
-    /// Credential-store key containing the provider API token. Empty values are
-    /// treated as absent, which supports local providers that require no auth.
+    /// Legacy credential-store key containing a shared provider API token.
+    /// Retained for compatibility. Provider requests use isolated per-profile
+    /// keys computed by <see cref="ProviderCredentials"/>; the legacy key is
+    /// only read for the one-time OpenAI migration.
     /// </summary>
-    public const string ApiKeyCredentialKey = "provider.apiKey";
+    public const string ApiKeyCredentialKey = ProviderCredentials.LegacyApiKeyCredentialKey;
 
     private const string DefaultProviderId = "openai";
     private const string ChatCompletionsPath = "chat/completions";
@@ -60,14 +63,7 @@ public sealed partial class OpenAiCompatibleChatProvider : IChatProvider
     }
 
     /// <inheritdoc />
-    public string ProviderId
-    {
-        get
-        {
-            var configured = _settings.Current.Provider.ProviderId;
-            return string.IsNullOrWhiteSpace(configured) ? DefaultProviderId : configured;
-        }
-    }
+    public string ProviderId => ResolveProviderId(_settings.Current.Provider.ProviderId);
 
     /// <inheritdoc />
     public async Task<ChatCompletion> CompleteAsync(
@@ -82,10 +78,16 @@ public sealed partial class OpenAiCompatibleChatProvider : IChatProvider
             return Failure(resolutionError!);
         }
 
+        var guardDecision = EvaluateGuard(provider, model);
+        if (!guardDecision.IsAllowed)
+        {
+            return Failure(guardDecision.ToError());
+        }
+
         string? apiKey;
         try
         {
-            apiKey = await GetApiKeyAsync(cancellationToken).ConfigureAwait(false);
+            apiKey = await GetApiKeyAsync(provider, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (IsCredentialReadFailure(exception))
         {
@@ -148,6 +150,13 @@ public sealed partial class OpenAiCompatibleChatProvider : IChatProvider
             yield break;
         }
 
+        var guardDecision = EvaluateGuard(provider, model);
+        if (!guardDecision.IsAllowed)
+        {
+            yield return ErrorDelta(guardDecision.ToError());
+            yield break;
+        }
+
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(GetRequestTimeout(provider));
         var requestToken = timeoutCts.Token;
@@ -156,7 +165,7 @@ public sealed partial class OpenAiCompatibleChatProvider : IChatProvider
         ProviderError? credentialError = null;
         try
         {
-            apiKey = await GetApiKeyAsync(requestToken).ConfigureAwait(false);
+            apiKey = await GetApiKeyAsync(provider, requestToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -376,6 +385,13 @@ public sealed partial class OpenAiCompatibleChatProvider : IChatProvider
         cancellationToken.ThrowIfCancellationRequested();
         var provider = _settings.Current.Provider;
 
+        var profile = FreeModelGuard.ResolveProfile(provider);
+        var guardDecision = FreeModelGuard.EvaluateHealth(provider, profile);
+        if (!guardDecision.IsAllowed)
+        {
+            return new ProviderHealth(false, guardDecision.Message);
+        }
+
         if (!TryBuildEndpoint(provider.BaseUrl, ModelsPath, out var endpoint, out var configurationError))
         {
             return new ProviderHealth(false, configurationError!.Message);
@@ -384,7 +400,7 @@ public sealed partial class OpenAiCompatibleChatProvider : IChatProvider
         string? apiKey;
         try
         {
-            apiKey = await GetApiKeyAsync(cancellationToken).ConfigureAwait(false);
+            apiKey = await GetApiKeyAsync(provider, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (IsCredentialReadFailure(exception))
         {
@@ -441,13 +457,64 @@ public sealed partial class OpenAiCompatibleChatProvider : IChatProvider
         }
     }
 
-    private async Task<string?> GetApiKeyAsync(CancellationToken cancellationToken)
+    private static FreeModelGuardDecision EvaluateGuard(
+        AppSettings.ProviderSettings provider,
+        string? modelId)
     {
-        var key = await _credentials
-            .GetAsync(ApiKeyCredentialKey, cancellationToken)
-            .ConfigureAwait(false);
+        var profile = FreeModelGuard.ResolveProfile(provider);
+        return FreeModelGuard.Evaluate(provider, profile, modelId);
+    }
 
-        return string.IsNullOrWhiteSpace(key) ? null : key.Trim();
+    private async Task<string?> GetApiKeyAsync(
+        AppSettings.ProviderSettings provider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+
+        var providerId = ResolveProviderId(provider.ProviderId);
+
+        if (!ProviderCatalog.TryGetById(providerId, out var profile))
+        {
+            // Unknown provider identifiers are isolated from the legacy key.
+            // Loopback endpoints fail closed without reading any credential.
+            if (ProviderCatalog.IsLoopbackAllowedHttp(provider.BaseUrl))
+            {
+                return null;
+            }
+
+            var isolatedKey = ProviderCredentials.GetApiKeyCredentialKey(providerId);
+            var isolatedValue = await _credentials
+                .GetAsync(isolatedKey, cancellationToken)
+                .ConfigureAwait(false);
+
+            return string.IsNullOrWhiteSpace(isolatedValue) ? null : isolatedValue.Trim();
+        }
+
+        // Local or keyless profiles never read credentials and never send an
+        // Authorization header, even when credentials exist in the store.
+        if (!profile.RequiresApiKey || profile.IsLocal)
+        {
+            return null;
+        }
+
+        var credentialKey = ProviderCredentials.GetApiKeyCredentialKey(profile);
+        var allowLegacyFallback = string.Equals(
+            profile.Id,
+            ProviderCatalog.OpenAiId,
+            StringComparison.OrdinalIgnoreCase);
+
+        return await CredentialMigration.ResolveApiKeyAsync(
+            _credentials,
+            credentialKey,
+            allowLegacyFallback,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string ResolveProviderId(string? providerId)
+    {
+        return string.IsNullOrWhiteSpace(providerId)
+            ? DefaultProviderId
+            : providerId.Trim();
     }
 
     private bool TryResolveRequest(
@@ -556,6 +623,17 @@ public sealed partial class OpenAiCompatibleChatProvider : IChatProvider
         if (maxOutputTokens > 0)
         {
             payload["max_tokens"] = maxOutputTokens;
+        }
+
+        // OpenAI-compatible JSON mode hint. This is opt-in so existing request
+        // shapes (and providers that do not understand response_format) are
+        // unaffected. No credentials or request content are added here.
+        if (request.RequireJsonObject)
+        {
+            payload["response_format"] = new JsonObject
+            {
+                ["type"] = "json_object",
+            };
         }
 
         return payload.ToJsonString();
