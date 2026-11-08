@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Capri.Tests</RootNamespace>
+    <AssemblyName>Capri.Tests</AssemblyName>
+    <!-- Tests must not fail the build on analyzer warnings. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Capri.Core\Capri.Core.csproj" />
+    <ProjectReference Include="..\..\src\Capri.Providers\Capri.Providers.csproj" />
+    <ProjectReference Include="..\..\src\Capri.Security\Capri.Security.csproj" />
+    <ProjectReference Include="..\..\src\Capri.Automation\Capri.Automation.csproj" />
+    <ProjectReference Include="..\..\src\Capri.Voice\Capri.Voice.csproj" />
+    <ProjectReference Include="..\..\src\Capri.Desktop\Capri.Desktop.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

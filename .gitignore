@@ -1,0 +1,122 @@
+## Visual Studio / .NET
+
+# Build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.rsuser
+
+# Rider / ReSharper
+.idea/
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# VS Code (workspace settings stay shareable)
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# NuGet
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+*.nuget.props
+*.nuget.targets
+
+# MSBuild / publish
+*.publishproj
+*.publishsettings
+PublishScripts/
+publish/
+*.[Pp]ublish.xml
+*.pubxml
+*.pubxml.user
+*.appx
+*.appxbundle
+*.appxupload
+*.msix
+*.msixbundle
+
+# .NET / ASP.NET local files
+project.lock.json
+project.fragment.lock.json
+*.dll.config
+*.exe.config
+App_Data/
+*.dbmdl
+*.jfm
+*.tmp
+*.temp
+*.cache
+*.log
+*.pidb
+*.svclog
+*.scc
+
+# Misc OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# User secrets / environment (never commit)
+.env
+.env.*
+!.env.example
+secrets.json
+
+# Project Capri - local/private assets and captures (do not publish)
+design/references/*
+!design/references/README.md
+!design/references/.gitkeep
+
+# Character artwork (review redistribution rights before publishing; app uses placeholder when absent)
+design/assets/capri/*
+!design/assets/capri/README.md
+!design/assets/capri/.gitkeep
+
+# Local desktop captures/renders (may contain personal information)
+design/capri-*-capture*.png
+design/capri-*-render*.png
+design/capri-*-comparison*.png
+
+# Private installation notes and all local design image formats
+CAPRI-ASSET-INSTALL.txt
+design/*.png
+design/*.jpg
+design/*.jpeg
+design/*.webp
+design/*.gif
+design/*.bmp
+design/*.zip
+
+# Local configuration, diagnostic exports, credentials
+settings.json
+secrets.dat
+*.pem
+*.pfx
+*.key
+*.har
