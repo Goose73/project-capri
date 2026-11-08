@@ -232,4 +232,59 @@ public sealed class CliParserTests
         Assert.False(invocation.IsValid);
         Assert.Equal(CliCommandKind.Unknown, invocation.Kind);
     }
+
+    [Theory]
+    [InlineData("task")]
+    [InlineData("tasks")]
+    public void M4TaskCommandsAreKnown(string command)
+    {
+        Assert.True(CliParser.IsKnownCommand(command));
+    }
+
+    [Fact]
+    public void TaskRequestParsesUnquotedRemainder()
+    {
+        var invocation = CliParser.Parse(["task", "create", "a", "note"]);
+        Assert.Equal(CliCommandKind.Task, invocation.Kind);
+        Assert.True(invocation.IsValid);
+        Assert.Equal(["create a note"], invocation.Arguments);
+        Assert.False(invocation.Json);
+    }
+
+    [Fact]
+    public void TaskStopParsesWithJson()
+    {
+        var invocation = CliParser.Parse(["task", "stop", "--json"]);
+        Assert.Equal(CliCommandKind.Task, invocation.Kind);
+        Assert.Equal(["stop"], invocation.Arguments);
+        Assert.True(invocation.Json);
+    }
+
+    [Fact]
+    public void TaskStatusRequiresId()
+    {
+        var invalid = CliParser.Parse(["task", "status"]);
+        var valid = CliParser.Parse(["task", "status", "00000000-0000-0000-0000-000000000001", "--json"]);
+        Assert.False(invalid.IsValid);
+        Assert.True(valid.IsValid);
+        Assert.Equal(["status", "00000000-0000-0000-0000-000000000001"], valid.Arguments);
+        Assert.True(valid.Json);
+    }
+
+    [Fact]
+    public void TasksParsesJson()
+    {
+        var invocation = CliParser.Parse(["tasks", "--json"]);
+        Assert.Equal(CliCommandKind.Tasks, invocation.Kind);
+        Assert.True(invocation.Json);
+        Assert.True(invocation.IsValid);
+    }
+
+    [Fact]
+    public void TaskExecutionRejectsJson()
+    {
+        var invocation = CliParser.Parse(["task", "do", "something", "--json"]);
+        Assert.False(invocation.IsValid);
+        Assert.Contains("interactive", invocation.Error, StringComparison.OrdinalIgnoreCase);
+    }
 }

@@ -22,6 +22,7 @@
     <ProjectReference Include="..\Capri.Core\Capri.Core.csproj" />
     <ProjectReference Include="..\Capri.Providers\Capri.Providers.csproj" />
     <ProjectReference Include="..\Capri.Security\Capri.Security.csproj" />
+    <ProjectReference Include="..\Capri.Automation\Capri.Automation.csproj" />
   </ItemGroup>
 
 </Project>

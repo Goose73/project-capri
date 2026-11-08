@@ -29,6 +29,12 @@ public static class HelpText
                                          Send a question to the configured provider
           capri chat                     Interactive chat with the configured provider
           capri providers test [--json]  Run an actual inference test with the configured provider
+          capri task "<request>"         Plan and run a local AI task (interactive approval required)
+          capri tasks [--json]           List recent task metadata
+          capri task status <id> [--json]
+          capri task stop [--json]       Latch emergency stop (cancels queued work)
+          capri task reset-stop [--json] Reset emergency stop for future tasks
+          capri task history [--json]    Show task-history metadata
           capri setup [--repair]         Interactive first-run setup/repair wizard
           capri start                    Launch the desktop app
           capri gui                      Alias for 'capri start'
@@ -40,6 +46,11 @@ public static class HelpText
           to enter API keys. Config commands only accept non-secret settings.
           Cloud inference respects configured consent/guards. `capri models pull`
           never downloads without explicit confirmation.
+          `capri task` uses the configured local AI to propose a bounded JSON plan,
+          shows every action and proposed note text, and requires explicit interactive
+          approval (`approve PLAN`). Non-interactive execution is refused. Emergency
+          stop cancels queued work; already-dispatched external actions may have occurred.
+          Task history/status show metadata only (no prompts, plan targets, note text, or credentials).
 
         Exit codes:
           0   success
@@ -141,6 +152,37 @@ public static class HelpText
                 Sends an actual inference request to the configured provider
                 ("Reply with: Capri ready"), reports success/failure and latency,
                 and respects free-model/consent guards. No secrets are printed.
+                """,
+            "task" => """
+                capri task "<request>"
+                capri task status <id> [--json]
+                capri task stop [--json]
+                capri task reset-stop [--json]
+                capri task history [--json]
+                capri tasks [--json]
+
+                Runs a local AI task through the existing Capri coordinator. The configured
+                provider/model plans a bounded JSON action list (trusted parser, one repair).
+                Before execution Capri shows the request, provider/model, every action,
+                exact targets/filenames/destinations, complete proposed note text, read-only
+                vs modifying actions, and verification uncertainty. You must type exactly
+                `approve PLAN` in an interactive terminal. Non-interactive, EOF, timeout, or
+                cancelled approval denies execution.
+
+                Note steps require selecting an existing disposable directory. Capri creates
+                new .txt files only and never overwrites existing files.
+
+                Stop/reset operate on shared per-user task control state under Capri data.
+                `task stop` latches emergency stop and reports active ownership; queued work
+                is cancelled but an already-dispatched external action may have occurred.
+                `task reset-stop` allows future tasks only and never revives cancelled tasks.
+                Status/history output is metadata only.
+                """,
+            "tasks" => """
+                capri tasks [--json]
+
+                Lists recent task metadata (id, phase/state, step, verification flags,
+                provider/model). No prompts, plan targets, note contents, or credentials.
                 """,
             "start" or "gui" => """
                 capri start

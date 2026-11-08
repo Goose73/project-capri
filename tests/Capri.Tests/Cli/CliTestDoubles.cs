@@ -4,6 +4,7 @@ using System.Text;
 using Capri.Cli;
 using Capri.Cli.Services;
 using Capri.Core.Abstractions;
+using Capri.Core.Autonomy;
 using Capri.Core.Models;
 using Capri.Security;
 using Capri.Tests.TestDoubles;
@@ -80,6 +81,14 @@ public sealed class StubCliServices : ICliServices
     public IOllamaClient? OllamaClient { get; set; }
 
     public IHttpClientFactory? HttpClientFactory { get; set; }
+
+    public ITaskControl? TaskControl { get; set; }
+
+    public ITaskHistoryStore? TaskHistory { get; set; }
+
+    public ITaskExecutor? TaskExecutor { get; set; }
+
+    public ITaskJournal? TaskJournal { get; set; }
 
     public static StubCliServices CreateInTemp(
         string tempPath,

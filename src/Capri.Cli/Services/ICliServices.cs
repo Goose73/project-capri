@@ -1,4 +1,5 @@
 using Capri.Core.Abstractions;
+using Capri.Core.Autonomy;
 
 namespace Capri.Cli.Services;
 
@@ -28,4 +29,9 @@ public interface ICliServices : IDisposable
 
     /// <summary>Local Ollama API client, or null when unavailable.</summary>
     IOllamaClient? OllamaClient => null;
+
+    ITaskControl? TaskControl => null;
+    ITaskHistoryStore? TaskHistory => null;
+    ITaskExecutor? TaskExecutor => null;
+    ITaskJournal? TaskJournal => null;
 }

@@ -44,6 +44,12 @@ public enum CliCommandKind
     /// <summary>Provider operations such as inference testing.</summary>
     Providers,
 
+    /// <summary>Run a local AI task through the existing coordinator (Milestone 4).</summary>
+    Task,
+
+    /// <summary>List recent task metadata.</summary>
+    Tasks,
+
     /// <summary>The command was not recognized.</summary>
     Unknown,
 }
@@ -100,6 +106,8 @@ public static class CliParser
         "ask",
         "chat",
         "providers",
+        "task",
+        "tasks",
         "version",
     ];
 
@@ -166,6 +174,12 @@ public static class CliParser
 
             case "providers":
                 return ParseProviders(args);
+
+            case "task":
+                return ParseTask(args);
+
+            case "tasks":
+                return ParseTasks(args);
 
             default:
                 return UsageError(
@@ -456,6 +470,90 @@ public static class CliParser
             Arguments = [string.Join(' ', parts)],
             Json = json,
         };
+    }
+
+    private static CliInvocation ParseTask(IReadOnlyList<string> args)
+    {
+        if (args.Count == 1)
+        {
+            return UsageError("Usage: capri task \"<request>\" | capri task status <id> | capri task stop|reset-stop|history [--json]");
+        }
+
+        var first = args[1].Trim();
+        if (IsHelpOption(first) || string.Equals(first, "help", StringComparison.OrdinalIgnoreCase))
+        {
+            return new CliInvocation { Kind = CliCommandKind.Help, Topic = "task" };
+        }
+
+        var firstLower = first.ToLowerInvariant();
+        if (firstLower is "status" or "stop" or "reset-stop" or "history")
+        {
+            var json = false;
+            var positionals = new List<string> { firstLower };
+            for (var index = 2; index < args.Count; index++)
+            {
+                var argument = args[index].Trim();
+                if (argument.Length == 0) continue;
+                if (IsHelpOption(argument))
+                    return new CliInvocation { Kind = CliCommandKind.Help, Topic = "task" };
+                if (string.Equals(argument, "--json", StringComparison.OrdinalIgnoreCase))
+                {
+                    json = true;
+                    continue;
+                }
+                if (argument.StartsWith("--", StringComparison.Ordinal))
+                    return UsageError("Unknown option. Run 'capri help task' for usage.");
+                positionals.Add(argument);
+            }
+
+            if (firstLower == "status")
+            {
+                if (positionals.Count != 2)
+                    return UsageError("Usage: capri task status <id> [--json]");
+            }
+            else if (positionals.Count != 1)
+            {
+                return UsageError($"Usage: capri task {firstLower} [--json]");
+            }
+
+            return new CliInvocation
+            {
+                Kind = CliCommandKind.Task,
+                Arguments = positionals,
+                Json = json,
+            };
+        }
+
+        // Run request: accept unquoted remainder reasonably.
+        var parts = new List<string>(capacity: Math.Max(1, args.Count - 1));
+        for (var index = 1; index < args.Count; index++)
+        {
+            var argument = args[index];
+            var trimmed = argument.Trim();
+            if (IsHelpOption(trimmed))
+                return new CliInvocation { Kind = CliCommandKind.Help, Topic = "task" };
+            if (string.Equals(trimmed, "--json", StringComparison.OrdinalIgnoreCase))
+                return UsageError("`capri task` execution is interactive and does not support --json. Use `capri task status|history --json` for metadata.");
+            if (trimmed.StartsWith("--", StringComparison.Ordinal))
+                return UsageError("Unknown option. Run 'capri help task' for usage.");
+            parts.Add(argument);
+        }
+
+        var request = string.Join(' ', parts).Trim();
+        if (string.IsNullOrWhiteSpace(request))
+            return UsageError("A task description is required. Usage: capri task \"<request>\"");
+
+        return new CliInvocation
+        {
+            Kind = CliCommandKind.Task,
+            Arguments = [request],
+            Json = false,
+        };
+    }
+
+    private static CliInvocation ParseTasks(IReadOnlyList<string> args)
+    {
+        return ParseFlagOnly(args, CliCommandKind.Tasks, allowJson: true, allowRepair: false);
     }
 
     private static CliInvocation ParseProviders(IReadOnlyList<string> args)

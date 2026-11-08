@@ -2,6 +2,7 @@ using Capri.Core.Abstractions;
 using Capri.Core.Autonomy;
 using Capri.Automation.Autonomy;
 using Capri.Security;
+using Capri.Security.Autonomy;
 using Capri.Desktop.Services;
 using Capri.Desktop.ViewModels;
 using Capri.Desktop.Views;
@@ -49,8 +50,18 @@ public static class DesktopServiceCollectionExtensions
         services.TryAddSingleton<TrayIconService>();
         services.TryAddSingleton<ITaskApproval, WpfTaskApproval>();
         services.TryAddSingleton<ITaskExecutor, SafeTaskExecutor>();
-        services.TryAddSingleton<ITaskJournal, TaskMetadataJournal>();
-        services.TryAddSingleton<TaskCoordinator>();
+        services.TryAddSingleton<ITaskControl, FileTaskControl>();
+        services.TryAddSingleton<ITaskHistoryStore, FileTaskHistoryStore>();
+        services.TryAddSingleton<ITaskJournal>(sp => new TaskMetadataJournal(
+            sp.GetRequiredService<ICapriPaths>(),
+            sp.GetService<ITaskHistoryStore>()));
+        services.TryAddSingleton<TaskCoordinator>(sp => new TaskCoordinator(
+            sp.GetRequiredService<Capri.Core.Abstractions.IChatProvider>(),
+            sp.GetRequiredService<Capri.Core.Abstractions.IModelRouter>(),
+            sp.GetRequiredService<ITaskApproval>(),
+            sp.GetRequiredService<ITaskExecutor>(),
+            sp.GetRequiredService<ITaskJournal>(),
+            sp.GetService<ITaskControl>()));
 
         return services;
     }

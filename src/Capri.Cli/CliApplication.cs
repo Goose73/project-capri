@@ -20,6 +20,7 @@ public sealed class CliApplication
     private readonly ChatCommand _chat;
     private readonly ProvidersCommand _providers;
     private readonly SetupCommand _setup;
+    private readonly TaskCommand _task;
     private readonly DashboardCommand _dashboard;
     private readonly IDesktopLauncher _launcher;
 
@@ -47,7 +48,8 @@ public sealed class CliApplication
         _chat = new ChatCommand(console, services);
         _providers = new ProvidersCommand(console, services);
         _setup = new SetupCommand(console, services, probe);
-        _dashboard = new DashboardCommand(console, _status, _doctor, _config, launcher, ct => _chat.ExecuteAsync(ct));
+        _task = new TaskCommand(console, services);
+        _dashboard = new DashboardCommand(console, _status, _doctor, _config, _task, launcher, ct => _chat.ExecuteAsync(ct));
     }
 
     /// <summary>Runs the parsed invocation and returns a process exit code.</summary>
@@ -123,6 +125,10 @@ public sealed class CliApplication
                 }
 
                 return await _setup.ExecuteAsync(invocation.Repair, cancellationToken).ConfigureAwait(false);
+
+            case CliCommandKind.Task:
+            case CliCommandKind.Tasks:
+                return await _task.ExecuteAsync(invocation, cancellationToken).ConfigureAwait(false);
 
             case CliCommandKind.Start:
             case CliCommandKind.Gui:

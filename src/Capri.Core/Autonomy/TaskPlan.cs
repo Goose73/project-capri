@@ -8,7 +8,16 @@ public enum TaskTool { LaunchApp, OpenUrl, BraveSearch, CreateNote, OpenNote }
 public sealed record TaskStep(TaskTool Tool, string Target, string? Text = null);
 public sealed record TaskPlan(IReadOnlyList<TaskStep> Steps);
 public sealed record TaskOutcome(bool Succeeded, bool Verified, string Message);
-public sealed record TaskProgress(TaskPhase Phase, string Message);
+public sealed record TaskProgress(
+    TaskPhase Phase,
+    string Message,
+    Guid? TaskId = null,
+    int? StepIndex = null,
+    int? TotalSteps = null,
+    string? ProviderId = null,
+    string? ModelId = null,
+    bool? Verified = null,
+    bool? Dispatched = null);
 
 /// <summary>Fail-closed grammar for untrusted model output. No executable paths or shell arguments.</summary>
 public static class TaskPlanParser

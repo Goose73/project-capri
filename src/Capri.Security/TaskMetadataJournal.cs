@@ -8,10 +8,17 @@ namespace Capri.Security;
 public sealed class TaskMetadataJournal : ITaskJournal
 {
     private readonly ICapriPaths _paths;
+    private readonly ITaskHistoryStore? _history;
     // Multiple coordinators may each resolve a journal instance for the same data root.
     private static readonly object Sync = new();
 
-    public TaskMetadataJournal(ICapriPaths paths) => _paths = paths;
+    public TaskMetadataJournal(ICapriPaths paths) : this(paths, history: null) { }
+
+    public TaskMetadataJournal(ICapriPaths paths, ITaskHistoryStore? history)
+    {
+        _paths = paths;
+        _history = history;
+    }
 
     public void Record(Guid id, TaskPhase phase, int stepIndex)
     {
@@ -43,6 +50,73 @@ public sealed class TaskMetadataJournal : ITaskJournal
                     File.Delete(temporaryPath);
                 }
             }
+        }
+
+        TryRecordHistory(id, phase, stepIndex, totalSteps: null, providerId: null, modelId: null, verified: null, dispatched: null, finalCategory: null);
+    }
+
+    public void RecordTaskStarted(Guid id, string? providerId, string? modelId)
+    {
+        TryRecordHistory(id, TaskPhase.Created, 0, totalSteps: null, providerId, modelId, verified: null, dispatched: null, finalCategory: null, created: DateTimeOffset.UtcNow);
+    }
+
+    public void RecordTaskPhase(
+        Guid id,
+        TaskPhase phase,
+        int stepIndex,
+        int? totalSteps = null,
+        string? message = null,
+        bool? verified = null,
+        bool? dispatched = null)
+    {
+        Record(id, phase, stepIndex);
+        TryRecordHistory(id, phase, stepIndex, totalSteps, null, null, verified, dispatched, message);
+    }
+
+    public void RecordTaskCompleted(
+        Guid id,
+        TaskPhase finalPhase,
+        int stepIndex,
+        int? totalSteps = null,
+        bool? lastVerified = null,
+        bool? lastDispatched = null)
+    {
+        Record(id, finalPhase, stepIndex);
+        TryRecordHistory(id, finalPhase, stepIndex, totalSteps, null, null, lastVerified, lastDispatched, finalPhase.ToString());
+    }
+
+    private void TryRecordHistory(
+        Guid id,
+        TaskPhase phase,
+        int stepIndex,
+        int? totalSteps,
+        string? providerId,
+        string? modelId,
+        bool? verified,
+        bool? dispatched,
+        string? finalCategory,
+        DateTimeOffset? created = null)
+    {
+        if (_history is null) return;
+        try
+        {
+            var existing = _history.Find(id);
+            _history.Record(new TaskHistoryEntry(
+                id,
+                existing?.CreatedUtc ?? created ?? DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow,
+                phase.ToString(),
+                stepIndex,
+                totalSteps ?? existing?.TotalSteps,
+                providerId ?? existing?.ProviderId,
+                modelId ?? existing?.ModelId,
+                verified ?? existing?.LastStepVerified,
+                dispatched ?? existing?.LastStepDispatched,
+                finalCategory ?? existing?.FinalCategory));
+        }
+        catch
+        {
+            // History is auxiliary metadata; never fail the task or latest snapshot.
         }
     }
 }

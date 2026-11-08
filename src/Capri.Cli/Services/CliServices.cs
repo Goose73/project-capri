@@ -1,5 +1,10 @@
+using Capri.Automation.Autonomy;
+using Capri.Automation.DependencyInjection;
 using Capri.Core.Abstractions;
+using Capri.Core.Autonomy;
 using Capri.Providers.DependencyInjection;
+using Capri.Security;
+using Capri.Security.Autonomy;
 using Capri.Security.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -7,9 +12,10 @@ using Microsoft.Extensions.Logging;
 namespace Capri.Cli.Services;
 
 /// <summary>
-/// Default CLI service composition. Reuses <c>AddCapriSecurity</c> and
-/// <c>AddCapriProviders</c> so settings, credentials, provider profiles, and
-/// the HTTP client factory behave exactly as they do in the desktop app.
+/// Default CLI service composition. Reuses <c>AddCapriSecurity</c>,
+/// <c>AddCapriProviders</c>, and <c>AddCapriAutomation</c> so settings,
+/// credentials, provider profiles, and the HTTP client factory behave exactly
+/// as they do in the desktop app.
 /// </summary>
 public sealed class CliServices : ICliServices
 {
@@ -42,6 +48,18 @@ public sealed class CliServices : ICliServices
     /// <inheritdoc />
     public IOllamaClient? OllamaClient => _provider.GetService<IOllamaClient>();
 
+    /// <inheritdoc />
+    public ITaskControl? TaskControl => _provider.GetService<ITaskControl>();
+
+    /// <inheritdoc />
+    public ITaskHistoryStore? TaskHistory => _provider.GetService<ITaskHistoryStore>();
+
+    /// <inheritdoc />
+    public ITaskExecutor? TaskExecutor => _provider.GetService<ITaskExecutor>();
+
+    /// <inheritdoc />
+    public ITaskJournal? TaskJournal => _provider.GetService<ITaskJournal>();
+
     /// <summary>
     /// Builds the default service graph. No host is started and no network
     /// client is created until a command actually needs one.
@@ -52,6 +70,13 @@ public sealed class CliServices : ICliServices
         services.AddLogging();
         services.AddCapriSecurity();
         services.AddCapriProviders();
+        services.AddCapriAutomation();
+        services.AddSingleton<ITaskControl, FileTaskControl>();
+        services.AddSingleton<ITaskHistoryStore, FileTaskHistoryStore>();
+        services.AddSingleton<ITaskExecutor, SafeTaskExecutor>();
+        services.AddSingleton<ITaskJournal>(sp => new TaskMetadataJournal(
+            sp.GetRequiredService<ICapriPaths>(),
+            sp.GetService<ITaskHistoryStore>()));
         services.AddHttpClient("capri.ollama", client =>
         {
             client.Timeout = Timeout.InfiniteTimeSpan;

@@ -1,5 +1,5 @@
-using System.Runtime.CompilerServices;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
 using Capri.Core.Abstractions;
@@ -12,6 +12,9 @@ public interface ITaskApproval
 {
     /// <summary>Returns selected existing disposable workspace for note plans; null means denied.</summary>
     Task<string?> ApproveAsync(TaskPlan plan, CancellationToken cancellationToken);
+
+    /// <summary>Optional display context for approval UIs. Default is no-op for compatibility.</summary>
+    void SetContext(TaskApprovalContext context) { }
 }
 
 public interface ITaskExecutor
@@ -22,6 +25,25 @@ public interface ITaskExecutor
 public interface ITaskJournal
 {
     void Record(Guid id, TaskPhase phase, int stepIndex);
+
+    void RecordTaskStarted(Guid id, string? providerId, string? modelId) { }
+
+    void RecordTaskPhase(
+        Guid id,
+        TaskPhase phase,
+        int stepIndex,
+        int? totalSteps = null,
+        string? message = null,
+        bool? verified = null,
+        bool? dispatched = null) => Record(id, phase, stepIndex);
+
+    void RecordTaskCompleted(
+        Guid id,
+        TaskPhase finalPhase,
+        int stepIndex,
+        int? totalSteps = null,
+        bool? lastVerified = null,
+        bool? lastDispatched = null) => Record(id, finalPhase, stepIndex);
 }
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "Stop cancellation source is replaced on ResetStop and retained for the coordinator lifetime.")]
@@ -47,37 +69,108 @@ public sealed class TaskCoordinator
     private readonly ITaskApproval _approval;
     private readonly ITaskExecutor _executor;
     private readonly ITaskJournal _journal;
+    private readonly ITaskControl? _control;
     private readonly object _sync = new();
     private bool _stopped;
     private long _stopGeneration;
     private CancellationTokenSource _stopCancellation = new();
-    public bool IsStopped { get { lock (_sync) return _stopped; } }
+
+    public bool IsStopped
+    {
+        get
+        {
+            if (_control is not null) return _control.GetStopState().Stopped;
+            lock (_sync) return _stopped;
+        }
+    }
 
     public TaskCoordinator(IChatProvider provider, IModelRouter router, ITaskApproval approval, ITaskExecutor executor, ITaskJournal journal)
-    { _provider = provider; _router = router; _approval = approval; _executor = executor; _journal = journal; }
+        : this(provider, router, approval, executor, journal, control: null)
+    {
+    }
 
-    public void Stop() { lock (_sync) { _stopped = true; _stopGeneration++; _stopCancellation.Cancel(); } }
-    public void ResetStop() { lock (_sync) { if (_stopped) { _stopCancellation.Dispose(); _stopCancellation = new CancellationTokenSource(); } _stopped = false; } }
+    public TaskCoordinator(
+        IChatProvider provider,
+        IModelRouter router,
+        ITaskApproval approval,
+        ITaskExecutor executor,
+        ITaskJournal journal,
+        ITaskControl? control)
+    {
+        _provider = provider;
+        _router = router;
+        _approval = approval;
+        _executor = executor;
+        _journal = journal;
+        _control = control;
+    }
 
-    public async IAsyncEnumerable<TaskProgress> RunAsync(string goal, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public void Stop()
+    {
+        if (_control is not null)
+        {
+            _control.RequestStop(reason: "stop");
+            lock (_sync) { _stopped = true; _stopGeneration++; _stopCancellation.Cancel(); }
+            return;
+        }
+
+        lock (_sync) { _stopped = true; _stopGeneration++; _stopCancellation.Cancel(); }
+    }
+
+    public void ResetStop()
+    {
+        if (_control is not null)
+        {
+            _control.ResetStop();
+            lock (_sync) { if (_stopped) { _stopCancellation.Dispose(); _stopCancellation = new CancellationTokenSource(); } _stopped = false; }
+            return;
+        }
+
+        lock (_sync) { if (_stopped) { _stopCancellation.Dispose(); _stopCancellation = new CancellationTokenSource(); } _stopped = false; }
+    }
+
+    public IAsyncEnumerable<TaskProgress> RunAsync(string goal, CancellationToken cancellationToken = default)
+        => RunAsync(goal, Guid.NewGuid(), cancellationToken);
+
+    public async IAsyncEnumerable<TaskProgress> RunAsync(
+        string goal,
+        Guid taskId,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var channel = Channel.CreateUnbounded<TaskProgress>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
-        var worker = RunCoreAsync(goal, channel.Writer, cancellationToken);
+        var worker = RunCoreAsync(goal, taskId, channel.Writer, cancellationToken);
         // Drain the worker's final cancellation status even if the caller cancelled execution.
         await foreach (var update in channel.Reader.ReadAllAsync(CancellationToken.None)) yield return update;
         await worker;
     }
 
-    private async Task RunCoreAsync(string goal, ChannelWriter<TaskProgress> output, CancellationToken cancellationToken)
+    private async Task RunCoreAsync(string goal, Guid id, ChannelWriter<TaskProgress> output, CancellationToken cancellationToken)
     {
-        var id = Guid.NewGuid();
         long generation;
         CancellationToken stopToken;
         lock (_sync) { generation = _stopGeneration; stopToken = _stopCancellation.Token; }
+        if (_control is not null) generation = _control.GetStopState().Generation;
         var phase = TaskPhase.Created;
         var index = 0;
-        void Record(TaskPhase next) { phase = next; _journal.Record(id, phase, index); }
-        void Emit(string message) => output.TryWrite(new TaskProgress(phase, message));
+        var totalSteps = 0;
+        string? providerId = null;
+        string? modelId = null;
+        bool? lastVerified = null;
+        bool? lastDispatched = null;
+        var ownsActive = false;
+
+        void Record(TaskPhase next, string? message = null, bool? verified = null, bool? dispatched = null)
+        {
+            phase = next;
+            if (verified.HasValue) lastVerified = verified;
+            if (dispatched.HasValue) lastDispatched = dispatched;
+            _journal.Record(id, phase, index);
+            _journal.RecordTaskPhase(id, phase, index, totalSteps > 0 ? totalSteps : null, message, verified, dispatched);
+        }
+
+        void Emit(string message, bool? verified = null, bool? dispatched = null)
+            => output.TryWrite(new TaskProgress(phase, message, id, index, totalSteps > 0 ? totalSteps : null, providerId, modelId, verified, dispatched));
+
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stopToken);
         var activeBudget = Stopwatch.StartNew();
         var activeBudgetLimit = DefaultActiveBudget;
@@ -85,6 +178,14 @@ public sealed class TaskCoordinator
         var ct = limit.Token;
         try
         {
+            if (_control is not null)
+            {
+                var claim = new TaskOwnership(id, Environment.ProcessId, DateTimeOffset.UtcNow, Environment.MachineName);
+                if (!_control.TryAcquire(claim))
+                    throw new InvalidOperationException("Another Capri task is already active. Use `capri task status`/`capri tasks` or wait for it to finish.");
+                ownsActive = true;
+            }
+
             Record(phase);
             Emit("Task created.");
             CheckStop(generation, ct);
@@ -92,6 +193,9 @@ public sealed class TaskCoordinator
             Record(TaskPhase.Planning);
             Emit("Planning (no actions yet)...");
             var route = await _router.ResolveAsync(new ModelRouteRequest(RequiresStreaming: false), ct);
+            providerId = route.ProviderId;
+            modelId = route.ModelId;
+            _journal.RecordTaskStarted(id, providerId, modelId);
             var localProfile = ProviderCatalog.IsLocal(route.ProviderId);
             if (localProfile)
             {
@@ -103,6 +207,7 @@ public sealed class TaskCoordinator
             }
 
             var plan = await PlanWithSingleRepairAsync(goal, route, localProfile, generation, Emit, ct);
+            totalSteps = plan.Steps.Count;
             CheckStop(generation, ct);
             Record(TaskPhase.AwaitingPermission);
             Emit("Waiting for approval of exact plan and targets...");
@@ -113,9 +218,10 @@ public sealed class TaskCoordinator
             limit.CancelAfter(Timeout.InfiniteTimeSpan);
             using var approvalLimit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stopToken);
             approvalLimit.CancelAfter(TimeSpan.FromMinutes(5));
+            _approval.SetContext(new TaskApprovalContext(goal, providerId, modelId));
             var workspace = await _approval.ApproveAsync(plan, approvalLimit.Token);
             CheckStop(generation, ct);
-            if (workspace is null) { Record(TaskPhase.Cancelled); Emit("Task denied; no actions dispatched."); return; }
+            if (workspace is null) { Record(TaskPhase.Cancelled, "Task denied; no actions dispatched."); Emit("Task denied; no actions dispatched."); return; }
             if (plan.Steps.Any(s => s.Tool is TaskTool.CreateNote or TaskTool.OpenNote) && (string.IsNullOrWhiteSpace(workspace) || !Path.IsPathFullyQualified(workspace)))
                 throw new InvalidOperationException("A selected workspace is required.");
             activeBudget.Start();
@@ -130,26 +236,35 @@ public sealed class TaskCoordinator
                 stepLimit.CancelAfter(TimeSpan.FromSeconds(20));
                 var outcome = await _executor.ExecuteAsync(plan.Steps[index], workspace, stepLimit.Token).WaitAsync(stepLimit.Token);
                 CheckStop(generation, ct);
-                Record(TaskPhase.Observing);
-                Emit(outcome.Message);
+                Record(TaskPhase.Observing, outcome.Message, outcome.Verified, outcome.Succeeded);
+                Emit(outcome.Message, outcome.Verified, outcome.Succeeded);
                 if (!outcome.Succeeded) throw new InvalidOperationException("Step failed; remaining steps skipped.");
-                Record(TaskPhase.Verifying);
-                Emit(outcome.Verified ? "Independently verified." : "Dispatched only; outcome not independently verified.");
+                Record(TaskPhase.Verifying, null, outcome.Verified, outcome.Succeeded);
+                Emit(outcome.Verified ? "Independently verified." : "Dispatched only; outcome not independently verified.", outcome.Verified, outcome.Succeeded);
             }
-            Record(TaskPhase.Completed);
+            Record(TaskPhase.Completed, "Plan dispatch finished.");
             Emit("Plan dispatch finished; see per-step observed verification. Unverified actions may not have completed.");
         }
         catch (OperationCanceledException)
         {
-            Record(TaskPhase.Cancelled);
+            Record(TaskPhase.Cancelled, "Task cancelled.");
             Emit("Task cancelled; in-flight external actions may already have occurred. No automatic replay.");
         }
-        catch (Exception) 
+        catch (Exception)
         {
-            Record(TaskPhase.Failed);
+            Record(TaskPhase.Failed, "Task failed.");
             Emit("Task failed or unavailable; remaining steps skipped. No automatic replay.");
         }
-        finally { output.TryComplete(); }
+        finally
+        {
+            try { _journal.RecordTaskCompleted(id, phase, index, totalSteps > 0 ? totalSteps : null, lastVerified, lastDispatched); }
+            catch { /* metadata persistence must not hide task outcome */ }
+            if (ownsActive && _control is not null)
+            {
+                try { _control.Release(id); } catch { }
+            }
+            output.TryComplete();
+        }
     }
 
     private async Task<TaskPlan> PlanWithSingleRepairAsync(
@@ -157,7 +272,7 @@ public sealed class TaskCoordinator
         ModelRoute route,
         bool localProfile,
         long generation,
-        Action<string> emit,
+        Action<string, bool?, bool?> emit,
         CancellationToken ct)
     {
         var completion = await _provider.CompleteAsync(
@@ -176,7 +291,7 @@ public sealed class TaskCoordinator
             // before any journaled step. Only a coarse, fixed category is echoed
             // back; raw untrusted model output is never re-sent.
             var category = parseFailure is JsonException ? "malformed JSON" : "schema mismatch";
-            emit($"Planner response was invalid ({category}). Requesting one bounded JSON repair...");
+            emit($"Planner response was invalid ({category}). Requesting one bounded JSON repair...", null, null);
             CheckStop(generation, ct);
 
             var repair = await _provider.CompleteAsync(
@@ -185,7 +300,7 @@ public sealed class TaskCoordinator
             if (repair.Error is not null) throw new InvalidOperationException("Planner repair provider failed.");
             CheckStop(generation, ct);
 
-            emit("Repair response received; validating.");
+            emit("Repair response received; validating.", null, null);
             return TaskPlanParser.Parse(repair.Message.Content);
         }
     }
@@ -225,6 +340,8 @@ public sealed class TaskCoordinator
     private void CheckStop(long generation, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        if (_control is not null && _control.IsStopLatched(generation))
+            throw new OperationCanceledException("Emergency stop latched.");
         lock (_sync)
             if (_stopped || generation != _stopGeneration) throw new OperationCanceledException("Emergency stop latched.");
     }
