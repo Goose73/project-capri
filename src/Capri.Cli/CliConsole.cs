@@ -37,6 +37,11 @@ public interface ICliConsole
     /// <summary>Reads a line, returning null at end of input.</summary>
     string? ReadLine();
 
+    /// <summary>Reads interactive input with cancellation. Implementations must override this;
+    /// blocking <see cref="ReadLine"/> is never a safe fallback for approval prompts.</summary>
+    Task<string?> ReadLineAsync(CancellationToken cancellationToken)
+        => throw new NotSupportedException("This console does not support cancellation-aware interactive input.");
+
     /// <summary>Reads a key press when supported; otherwise returns a default key.</summary>
     ConsoleKeyInfo ReadKey(bool intercept = false) => default;
 
@@ -116,6 +121,29 @@ public sealed class SystemCliConsole : ICliConsole
 
     /// <inheritdoc />
     public string? ReadLine() => Console.ReadLine();
+
+    /// <inheritdoc />
+    public async Task<string?> ReadLineAsync(CancellationToken cancellationToken)
+    {
+        if (!IsInteractive) throw new InvalidOperationException("Interactive input is required.");
+        var input = new System.Text.StringBuilder();
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!KeyAvailable) { await Task.Delay(25, cancellationToken).ConfigureAwait(false); continue; }
+            var key = ReadKey(intercept: true);
+            if (key.Key == ConsoleKey.Enter) { WriteLine(string.Empty); return input.ToString(); }
+            if (key.Key == ConsoleKey.Backspace)
+            {
+                if (input.Length > 0) { input.Length--; Write("\b \b"); }
+            }
+            else if (key.KeyChar is >= ' ' and not '\u007f' && input.Length < 4096)
+            {
+                input.Append(key.KeyChar);
+                Write(key.KeyChar.ToString());
+            }
+        }
+    }
 
     /// <inheritdoc />
     public ConsoleKeyInfo ReadKey(bool intercept = false)

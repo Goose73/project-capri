@@ -34,6 +34,7 @@ public static class ConfigSettings
         "ui.startMinimized",
         "ui.alwaysOnTop",
         "ui.theme",
+        "ui.reduceMotion",
         "ui.avatarScale",
         "ui.characterHeight",
         "voice.enabled",
@@ -104,6 +105,7 @@ public static class ConfigSettings
             "ui.startMinimized" => ui.StartMinimized,
             "ui.alwaysOnTop" => ui.AlwaysOnTop,
             "ui.theme" => ui.Theme,
+            "ui.reduceMotion" => ui.ReduceMotion,
             "ui.avatarScale" => ui.AvatarScale,
             "ui.characterHeight" => ui.CharacterHeight,
             "voice.enabled" => voice.Enabled,
@@ -373,6 +375,16 @@ public static class ConfigSettings
                 updated = current with { Ui = ui with { Theme = theme } };
                 return true;
             }
+
+            case "ui.reduceMotion":
+                if (!TryParseBoolean(value, out var reduceMotion))
+                {
+                    error = "Use true or false.";
+                    return false;
+                }
+
+                updated = current with { Ui = ui with { ReduceMotion = reduceMotion } };
+                return true;
 
             case "ui.avatarScale":
                 if (!TryParseDouble(value, out var avatarScale) || avatarScale is < 0.5 or > 3)

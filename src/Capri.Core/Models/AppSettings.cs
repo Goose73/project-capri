@@ -142,6 +142,9 @@ public sealed record AppSettings
         /// </summary>
         public string Theme { get; init; } = "System";
 
+        /// <summary>True when the avatar should use reduced-motion presentation.</summary>
+        public bool ReduceMotion { get; init; }
+
         /// <summary>
         /// Scale factor applied to the avatar.
         /// </summary>

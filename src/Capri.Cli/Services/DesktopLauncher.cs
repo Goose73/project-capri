@@ -35,18 +35,15 @@ public interface IDesktopLauncher
 }
 
 /// <summary>
-/// Pure path discovery for the desktop app. Mirrors the built-executable-first
+/// Pure path discovery for the desktop app. Mirrors the Release-first
 /// behavior of capri.cmd and never duplicates desktop AI logic.
 /// </summary>
 public static class DesktopLaunchPlanner
 {
     private static readonly string[] ExecutableCandidates =
     [
-        @"src\Capri.Desktop\bin\Debug\net10.0-windows\Capri.Desktop.exe",
         @"src\Capri.Desktop\bin\Release\net10.0-windows\Capri.Desktop.exe",
-        @"src\Capri.Desktop\bin\Debug\net10.0-windows\win-x64\Capri.Desktop.exe",
         @"src\Capri.Desktop\bin\Release\net10.0-windows\win-x64\Capri.Desktop.exe",
-        @"src\Capri.Desktop\bin\Debug\net10.0-windows\publish\Capri.Desktop.exe",
         @"src\Capri.Desktop\bin\Release\net10.0-windows\publish\Capri.Desktop.exe",
     ];
 
@@ -98,9 +95,9 @@ public static class DesktopLaunchPlanner
             return new DesktopLaunchPlan(
                 DesktopLaunchKind.DotNetRun,
                 "dotnet",
-                ["run", "--project", project, "-c", "Debug"],
+                ["run", "--project", project, "-c", "Release"],
                 root,
-                "Built executable not found; building and running via dotnet run.");
+                "Release executable not found; building and running Release via dotnet run.");
         }
 
         return Unavailable(

@@ -173,7 +173,7 @@
                     <Border Background="{StaticResource Surface2}" CornerRadius="8" Padding="12" Margin="0,4,0,0">
                         <StackPanel>
                             <TextBlock Text="Capri visual states: Idle, Listening, Thinking, Talking, Happy/Success, Annoyed/Error, Surprised, Sleep." Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
-                            <CheckBox Content="Reduce motion (uses calmer transitions when supported)" IsChecked="False" ToolTip="UI preference; animation system respects reduced motion when enabled by presentation logic."/>
+                            <CheckBox Content="Reduce motion (uses calmer transitions when supported)" IsChecked="{Binding ReduceMotion}" ToolTip="Saved UI preference for avatar presentation."/>
                             <CheckBox Content="Show idle blink/movement" IsChecked="True" IsEnabled="False" ToolTip="Default character behavior."/>
                         </StackPanel>
                     </Border>

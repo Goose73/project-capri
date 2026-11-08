@@ -149,7 +149,6 @@ public sealed class TaskCoordinator
         long generation;
         CancellationToken stopToken;
         lock (_sync) { generation = _stopGeneration; stopToken = _stopCancellation.Token; }
-        if (_control is not null) generation = _control.GetStopState().Generation;
         var phase = TaskPhase.Created;
         var index = 0;
         var totalSteps = 0;
@@ -172,6 +171,8 @@ public sealed class TaskCoordinator
             => output.TryWrite(new TaskProgress(phase, message, id, index, totalSteps > 0 ? totalSteps : null, providerId, modelId, verified, dispatched));
 
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stopToken);
+        using var monitorEnd = new CancellationTokenSource();
+        var monitor = Task.CompletedTask;
         var activeBudget = Stopwatch.StartNew();
         var activeBudgetLimit = DefaultActiveBudget;
         limit.CancelAfter(activeBudgetLimit);
@@ -180,7 +181,9 @@ public sealed class TaskCoordinator
         {
             if (_control is not null)
             {
-                var claim = new TaskOwnership(id, Environment.ProcessId, DateTimeOffset.UtcNow, Environment.MachineName);
+                generation = _control.GetStopState().Generation;
+                monitor = MonitorStopAsync(_control, generation, limit, monitorEnd.Token);
+                var claim = new TaskOwnership(id, Environment.ProcessId, Process.GetCurrentProcess().StartTime.ToUniversalTime(), Environment.MachineName);
                 if (!_control.TryAcquire(claim))
                     throw new InvalidOperationException("Another Capri task is already active. Use `capri task status`/`capri tasks` or wait for it to finish.");
                 ownsActive = true;
@@ -192,7 +195,7 @@ public sealed class TaskCoordinator
             if (string.IsNullOrWhiteSpace(goal) || goal.Length > 2000) throw new FormatException("Task description must be 1–2000 characters.");
             Record(TaskPhase.Planning);
             Emit("Planning (no actions yet)...");
-            var route = await _router.ResolveAsync(new ModelRouteRequest(RequiresStreaming: false), ct);
+            var route = await _router.ResolveAsync(new ModelRouteRequest(RequiresStreaming: false), ct).AsTask().WaitAsync(ct);
             providerId = route.ProviderId;
             modelId = route.ModelId;
             _journal.RecordTaskStarted(id, providerId, modelId);
@@ -216,10 +219,10 @@ public sealed class TaskCoordinator
             activeBudget.Stop();
             var remainingBudget = activeBudgetLimit - activeBudget.Elapsed;
             limit.CancelAfter(Timeout.InfiniteTimeSpan);
-            using var approvalLimit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stopToken);
+            using var approvalLimit = CancellationTokenSource.CreateLinkedTokenSource(ct);
             approvalLimit.CancelAfter(TimeSpan.FromMinutes(5));
             _approval.SetContext(new TaskApprovalContext(goal, providerId, modelId));
-            var workspace = await _approval.ApproveAsync(plan, approvalLimit.Token);
+            var workspace = await _approval.ApproveAsync(plan, approvalLimit.Token).WaitAsync(approvalLimit.Token);
             CheckStop(generation, ct);
             if (workspace is null) { Record(TaskPhase.Cancelled, "Task denied; no actions dispatched."); Emit("Task denied; no actions dispatched."); return; }
             if (plan.Steps.Any(s => s.Tool is TaskTool.CreateNote or TaskTool.OpenNote) && (string.IsNullOrWhiteSpace(workspace) || !Path.IsPathFullyQualified(workspace)))
@@ -257,6 +260,8 @@ public sealed class TaskCoordinator
         }
         finally
         {
+            monitorEnd.Cancel();
+            await monitor;
             try { _journal.RecordTaskCompleted(id, phase, index, totalSteps > 0 ? totalSteps : null, lastVerified, lastDispatched); }
             catch { /* metadata persistence must not hide task outcome */ }
             if (ownsActive && _control is not null)
@@ -277,7 +282,7 @@ public sealed class TaskCoordinator
     {
         var completion = await _provider.CompleteAsync(
             BuildPlanningRequest(goal, route, localProfile, repairCategory: null),
-            ct);
+            ct).WaitAsync(ct);
         if (completion.Error is not null) throw new InvalidOperationException("Planner provider failed.");
         CheckStop(generation, ct);
 
@@ -296,7 +301,7 @@ public sealed class TaskCoordinator
 
             var repair = await _provider.CompleteAsync(
                 BuildPlanningRequest(goal, route, localProfile, category),
-                ct);
+                ct).WaitAsync(ct);
             if (repair.Error is not null) throw new InvalidOperationException("Planner repair provider failed.");
             CheckStop(generation, ct);
 
@@ -344,5 +349,21 @@ public sealed class TaskCoordinator
             throw new OperationCanceledException("Emergency stop latched.");
         lock (_sync)
             if (_stopped || generation != _stopGeneration) throw new OperationCanceledException("Emergency stop latched.");
+    }
+
+    private static async Task MonitorStopAsync(ITaskControl control, long generation, CancellationTokenSource limit, CancellationToken end)
+    {
+        while (!end.IsCancellationRequested && !limit.IsCancellationRequested)
+        {
+            try
+            {
+                if (control.IsStopLatched(generation)) { limit.Cancel(); break; }
+            }
+            catch { limit.Cancel(); break; } // corrupt/unavailable state fails closed
+            // ACL/path validation is performed by each read; 10 Hz bounds that work
+            // while still cancelling in-flight operations promptly.
+            try { await Task.Delay(100, end); }
+            catch (OperationCanceledException) { break; }
+        }
     }
 }

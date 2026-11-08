@@ -16,6 +16,19 @@ namespace Capri.Tests.Desktop;
 public sealed class SettingsViewModelTests
 {
     [Fact]
+    public async Task ReduceMotionLoadsAndSavesThroughSharedSettings()
+    {
+        var settings = CreateSettings(ProviderCatalog.OllamaId, ProviderCatalog.Ollama.DefaultBaseUrl);
+        var viewModel = CreateViewModel(settings with { Ui = settings.Ui with { ReduceMotion = true } }, new FakeCredentialStore());
+        await viewModel.LoadAsync();
+        Assert.True(viewModel.ReduceMotion);
+
+        viewModel.ReduceMotion = false;
+        await viewModel.SaveCommand.ExecuteAsync(null);
+        Assert.False(viewModel.ReduceMotion);
+    }
+
+    [Fact]
     public async Task LoadUsesProfileScopedCredentialKeyForStatus()
     {
         var credentials = new FakeCredentialStore();

@@ -1,8 +1,16 @@
-﻿# Development progress
+# Development progress
+
+## 2026-11-08 - Cooperative hardening follow-up (not M5 completion)
+
+Exclusive cross-process lock, current-user ACL/reparse validation, real PID start identity, fail-closed corrupt state, shared stop monitor cancellation (coordinator cancels waits/queued work; cannot force uncooperative in-flight completion), cancellable approval input, and independent chat cancellation pump are implemented locally. Setup changes recorded: diagnostics-only path with no saves, guarded provisional saves, exact tag matching. Reduced motion is persisted; Release launcher and CI smoke are recorded.
+
+**Latest actual verified result (after setup fixes):** Release build **0 warnings, 0 errors**; **585/585 tests passed** (exit 0). Previous independent Release QA reported **577 tests passing** with zero warnings, plus **2 separate process tests**. These are bounded automated checks, **not** live supervised task acceptance.
+
+This is **not full M4 or M5 completion** and **not full M5 per-user IPC authority/shared approvals**. Same-user path-swap TOCTOU remains a trust limitation; no malicious same-user protection claimed. An old requested disposable workspace exists but is **empty**; that is **no evidence of completion** and **not proof that no plan/approval ever occurred**. No live M4 supervised end-to-end acceptance or manual real TTY chat acceptance occurred. See [hardening status](HARDENING.md). No source license is granted yet; the owner must choose licensing terms before granting a license/community reuse, but this is not a barrier to the owner publishing their own code.
 
 ## 2026-11-08 - M4 terminal autonomy (implemented, partially verified; live supervised acceptance pending)
 
-**Status:** M4 terminal autonomy code implemented in the local working tree (publication prep). **570/570 automated tests pass** (Release, 0 failed). **Release build succeeds (0 warnings, 0 errors).** **Gitleaks** scan of staged M4 publication candidates: **no leaks found**.
+**Status:** M4 terminal autonomy code implemented in the local working tree (publication prep). **Latest verified (after setup fixes): 585/585 automated tests pass** (Release, 0 failed, exit 0). **Release build succeeds (0 warnings, 0 errors).** **Gitleaks** scan of staged M4 publication candidates: **no leaks found**. Previous independent QA: 577 + 2 separate process tests.
 
 **Implemented (M4):** reuses existing `TaskCoordinator`/`TaskPlanParser`/`SafeTaskExecutor`/journal (no separate autonomous engine). CLI adds `capri task "<request>"` (real configured provider planning via existing coordinator), `capri tasks`, `capri task status <id>`, `capri task stop`, `capri task reset-stop`, `capri task history`, help/dashboard updates, and terminal approval UI.
 
@@ -14,7 +22,7 @@
 
 ## 2026-11-08 - CLI Milestone 1 + M3 Ollama model management/terminal inference (verified local; publication prep)
 
-**Status:** M3 real local verification completed (no API key). Local uncommitted changes; publication prep in progress. Optional local artwork excluded. **570/570 automated tests pass** (Release, 0 failed, current state). **Release build succeeds (0 warnings, 0 errors).** **Gitleaks** scan of staged publication candidates: **no leaks found**.
+**Status:** M3 real local verification completed (no API key). Local uncommitted changes; publication prep in progress. Optional local artwork excluded. **Latest verified (after setup fixes): 585/585 automated tests pass** (Release, 0 failed, exit 0). **Release build succeeds (0 warnings, 0 errors).** **Gitleaks** scan of staged publication candidates: **no leaks found**. Previous independent QA: 577 + 2 separate process tests.
 
 **M3 verified (real, local Ollama v0.40.9):** approved download `ollama pull qwen3:4b-instruct` completed (~2.5 GB, SHA verified). Installed: `qwen3.5:4b` (3.3 GB) and `qwen3:4b-instruct`. Real CLI proof (Ollama/`qwen3:4b-instruct`, exit 0): `capri models list`, `models recommend`, `models use qwen3:4b-instruct` (persisted), `providers test` (actual inference, 1465 ms warm; response received though probe text not matched exactly), `capri ask "What is Project Capri?"` (genuine local response). `capri chat` correctly refuses non-interactive stdin.
 
@@ -24,7 +32,7 @@
 
 ## 2026-11-08 - M1-M6 free/local provider catalog & autonomy hardening (implementation; live proof superseded by M3)
 
-**Status:** implementation and automated verification recorded. M3 real local CLI inference provides live proof for the local Ollama path. Current automated state: **570/570 tests pass** (Release, 0 failed). **Release build 0 warnings, 0 errors.** Baselines: 296 -> 324 -> 329 -> 337 -> 339 -> 417 -> 540 -> 570.
+**Status:** implementation and automated verification recorded. M3 real local CLI inference provides live proof for the local Ollama path. Latest automated state (after setup fixes): **585/585 tests pass** (Release, 0 failed, exit 0). **Release build 0 warnings, 0 errors.** Previous independent QA: 577 + 2 separate process tests. Baselines: 296 -> 324 -> 329 -> 337 -> 339 -> 417 -> 540 -> 570.
 
 **Implemented (M1-M6):** provider catalog (Ollama no key, LM Studio, OpenRouter key/cloud off by default, OpenAI optional), schema v2 (`FreeModelsOnly` default true, `AllowCloudInference` default false), profile-specific credentials with fail-closed local auth, consent/free-only guards (OpenRouter `:free`), Settings UI/VM presets/health vs inference/model discovery, acceptance config-status for local loopback. Autonomy: route-aware budget/caps, `response_format json_object` hint, exactly one bounded planner repair **before approval only**.
 
@@ -32,7 +40,7 @@
 
 **Status:** honest progress update. **Full Phase 2 completion criteria are not all met.** Optional local artwork excluded.
 
-**Test/build evidence (current + historical):** **570/570 tests pass** (Release, 0 failed, current), **Release 0 warnings, 0 errors**. Historical baselines: 296 -> 324 -> 329 -> 337 -> 339 -> 417 -> 540 -> 570.
+**Test/build evidence (current + historical):** **585/585 tests pass** (Release, 0 failed, exit 0, after setup fixes, latest), **Release 0 warnings, 0 errors**. Previous independent QA: 577 + 2 separate process tests. Historical baselines: 296 -> 324 -> 329 -> 337 -> 339 -> 417 -> 540 -> 570.
 
 **Windows-only acceptance harness (`tools/Capri.Acceptance`, mode `windows-only`, prior milestone, not re-run):** mock planner clearly labeled (`planner=mock-fixed-plan-not-live-inference`), no live inference. Final JSON evidence: **PASS, exit 0, phaseCompleted, approvalShown=true, diskVerified=true, windowObserved=true** (window identity/presence and exact file readback only; **not** editor contents/AI).
 

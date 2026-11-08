@@ -1,15 +1,17 @@
-﻿# Autonomy slice (`/task` + `capri task`, experimental, partial)
+# Autonomy slice (`/task` + `capri task`, experimental, partial)
 
 This document describes the **experimental autonomy slice** implemented in the current local workspace (WPF `/task` and CLI `capri task`, M4). It is **not** a completed autonomy/request-fulfillment milestone.
 
 ## Status
 
+**Hardening boundary:** cooperative single-owner foundation only, not full M5 per-user IPC authority/shared approvals. Same-user path-swap TOCTOU remains a trust limitation; no malicious same-user protection claimed. Prior independent QA reported 577 Release tests passing (including two actual subprocess tests), zero warnings, but not live acceptance. An old requested disposable workspace exists but is empty; that is no evidence of completion and not proof that no plan/approval ever occurred. See [HARDENING.md](HARDENING.md).
+
 - **Milestone:** partial / experimental; **not full Phase 2 completion**.
-- **Current verified state (2026-11-08, local publication prep):** **570/570 automated tests pass** (Release, 0 failed). **Release build succeeds (0 warnings, 0 errors).** **Gitleaks** scan of staged M4 publication candidates: **no leaks found**.
+- **Current verified state (2026-11-08, local publication prep):** **585/585 automated tests pass** (Release, 0 failed, exit 0, after setup fixes). **Release build succeeds (0 warnings, 0 errors).** **Gitleaks** scan of staged M4 publication candidates: **no leaks found**. Prior independent QA reported 577 Release tests passing plus 2 separate process tests. Setup changes recorded as diagnostics-only (no saves), guarded provisional saves, exact tag matching; reduced motion persisted; Release launcher and CI smoke recorded.
 - **M3 real local inference verified (CLI, no API key):** Ollama v0.40.9 with approved `qwen3:4b-instruct` (SHA verified). `capri models list/recommend/use`, `providers test` (actual inference, exit 0), and `capri ask` (genuine local response) verified. `capri chat` correctly refuses non-interactive stdin. This confirms the local model/inference path.
 - **M4 terminal autonomy (implemented, partially verified):** reuses existing `TaskCoordinator`/`TaskPlanParser`/`SafeTaskExecutor`/journal (no separate autonomous engine). CLI adds `capri task "<request>"` (real configured provider planning via existing coordinator), `capri tasks`, `capri task status <id>`, `capri task stop`, `capri task reset-stop`, `capri task history`, help/dashboard updates, and terminal approval UI. Automated tests and safe CLI control checks are verified (including non-interactive refusal and `--json` stop/reset control checks). **Live supervised acceptance NOT completed by the agent** - a real local-model Ollama task that generates a genuine plan, receives *explicit user approval*, creates/verifies a note in a disposable workspace, opens Notepad, and observes the window has **not** been run/approved automatically. Manual supervised steps are required.
 - **WPF autonomy behavior (implemented in code):** route-aware budget/caps, `response_format json_object` hint when requested, and **exactly one bounded planner repair before approval only** (never after approval/dispatch). Existing fail-closed plan/approval/workspace/journal/no-replay constraints still apply. Desktop is wired to shared task control.
-- **Not yet verified/complete:** interactive TTY `capri chat` multi-turn/streaming/Ctrl+C cancellation (manual Windows Terminal acceptance), desktop GUI regression in this slice, locally planned/approved supervised WPF `/task` and/or CLI `capri task` end-to-end acceptance, M2 guided setup, wake-word/"Hey Capri", installer.
+- **Not yet verified/complete:** interactive TTY `capri chat` multi-turn/streaming/Ctrl+C cancellation (manual Windows Terminal acceptance), desktop GUI regression in this slice, locally planned/approved supervised WPF `/task` and/or CLI `capri task` end-to-end acceptance, M2 guided setup manual acceptance, wake-word/"Hey Capri", installer.
 - **Prior evidence (not re-run):** Windows-only mock-planner acceptance passed (`windowObserved=true`, mock planner, no live inference).
 - **No full vision fallback (Anthropic) implemented.** Screen vision is **architecture only** ([SCREEN-CONTROL-PLAN.md](SCREEN-CONTROL-PLAN.md)); **no implemented vision claim.**
 - Optional local artwork is excluded from the public repo. **Never copy OpenCode/browser tokens. No automatic model downloads by Capri.**
@@ -86,7 +88,7 @@ Cancellation/failure do not replay steps. **Cancellation may leave a created not
 
 ## Evidence / checks (reported/verified)
 
-- **Current (2026-11-08):** **570/570 automated tests pass** (Release, 0 failed). **Release 0 warnings, 0 errors.** **Gitleaks** no leaks found (staged M4 publication candidates). Historical: 296 -> 324 -> 329 -> 337 -> 339 -> 417 -> 540 -> 570.
+- **Current (2026-11-08, after setup fixes):** **585/585 automated tests pass** (Release, 0 failed, exit 0). **Release 0 warnings, 0 errors.** **Gitleaks** no leaks found (staged M4 publication candidates). Prior independent QA: 577 Release tests + 2 separate process tests. Historical: 296 -> 324 -> 329 -> 337 -> 339 -> 417 -> 540 -> 570.
 - **M4 safe CLI control checks:** piped/non-interactive `capri task` refuses with no dispatch (exit 2). `capri task stop --json` / `reset-stop --json` verified to latch/reset shared state safely.
 - **M3 real local CLI proof:** Ollama v0.40.9, `qwen3.5:4b` + `qwen3:4b-instruct` installed (approved pull, SHA verified). `capri models list/recommend/use`, `providers test` (actual inference, 1465 ms warm; probe text not matched exactly), `capri ask` genuine response (exit 0). `capri chat` refuses non-interactive stdin. Confirms local inference path.
 - **Prior mock-planner acceptance (not re-run):** `Capri.Acceptance windows-only` PASS, `windowObserved=true` (mock planner, no live inference).
@@ -98,8 +100,8 @@ Cancellation/failure do not replay steps. **Cancellation may leave a created not
 - **M4 live supervised acceptance (manual, required):** real local-model Ollama `capri task` generating a genuine plan, receiving *explicit user approval*, creating/verifying a note in a disposable workspace, opening Notepad, and observing the window. **Not completed by the agent; do not claim end-to-end live task succeeded.**
 - **Manual CLI acceptance:** interactive TTY `capri chat` multi-turn, streaming UX, Ctrl+C in-session generation cancellation (Windows Terminal).
 - **Supervised WPF `/task` acceptance as needed:** real local model verified via CLI; locally planned/approved end-to-end demonstration may still need explicit acceptance.
-- **M2 guided setup:** not implemented.
+- **M2 guided setup:** implemented in the CLI; manual terminal/Desktop acceptance pending.
 - **Local inference timeouts:** `providers test`/cold local inference can hit 60s default; local timeout may need tuning (300s used for local testing).
 - Broader repeatable verification for dispatch-only actions; full vision fallback (Anthropic) remains unimplemented (screen vision **architecture only**).
 - Cloud validation optional/explicit consent: OpenRouter/OpenAI can incur charges; OpenRouter off by default, `:free` heuristic guards apply but verify pricing. **Never copy OpenCode/browser tokens.**
-- Not implemented: hardware/model download wizard, LM Studio loaded-model metadata, automatic fallback routing UI beyond guards, Sign in with ChatGPT official integration, wake-word/"Hey Capri", installer. Desktop GUI regression not re-run in this slice.
+- Not implemented: LM Studio loaded-model metadata, automatic fallback routing UI beyond guards, Sign in with ChatGPT official integration, wake-word/"Hey Capri", installer. Desktop GUI regression not re-run in this slice.

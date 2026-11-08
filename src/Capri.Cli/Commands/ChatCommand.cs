@@ -53,7 +53,7 @@ public sealed class ChatCommand
         {
             cancellationToken.ThrowIfCancellationRequested();
             _console.Write("you> ");
-            var line = _console.ReadLine();
+            var line = await _console.ReadLineAsync(cancellationToken).ConfigureAwait(false);
             if (line is null)
             {
                 _console.WriteLine(string.Empty);
@@ -119,6 +119,8 @@ public sealed class ChatCommand
         var originalTreatAsInput = _console.TreatControlCAsInput;
         ProviderError? error = null;
         var cancelledByUser = false;
+        using var pumpEnd = new CancellationTokenSource();
+        var pump = _console.IsInteractive ? PumpCancelAsync(generationCts, pumpEnd.Token) : Task.CompletedTask;
 
         try
         {
@@ -129,62 +131,39 @@ public sealed class ChatCommand
 
             if (route.SupportsStreaming)
             {
-                await foreach (var delta in provider.StreamAsync(request, generationCts.Token).ConfigureAwait(false))
+                var stream = provider.StreamAsync(request, generationCts.Token).GetAsyncEnumerator(generationCts.Token);
+                Task<bool>? move = null;
+                try
                 {
-                    if (TryConsumeCancel(generationCts))
+                    while (true)
                     {
-                        cancelledByUser = true;
-                        break;
-                    }
+                        move = stream.MoveNextAsync().AsTask();
+                        if (!await move.WaitAsync(generationCts.Token).ConfigureAwait(false)) break;
+                        move = null;
+                        var delta = stream.Current;
 
-                    if (delta.Error is not null)
-                    {
-                        error = delta.Error;
-                        break;
-                    }
+                        if (delta.Error is not null) { error = delta.Error; break; }
 
-                    if (!string.IsNullOrEmpty(delta.Content))
-                    {
-                        sb.Append(delta.Content);
-                        _console.Write(delta.Content);
+                        if (!string.IsNullOrEmpty(delta.Content))
+                        {
+                            sb.Append(delta.Content);
+                            _console.Write(delta.Content);
+                        }
                     }
+                }
+                finally
+                {
+                    // An uncooperative provider may still be inside MoveNextAsync. Disposing
+                    // concurrently throws and can delay Ctrl+C indefinitely; the cancellation
+                    // token closes cooperative streams, while a stuck provider is abandoned.
+                    if (move is null || move.IsCompleted) await stream.DisposeAsync().ConfigureAwait(false);
                 }
             }
             else
             {
-                // For non-streaming, check for cancel before/after; cannot interrupt in-flight HTTP easily without CTS.
-                if (TryConsumeCancel(generationCts))
-                {
-                    cancelledByUser = true;
-                }
-                else
-                {
-                    var completionTask = provider.CompleteAsync(request, generationCts.Token);
-                    while (!completionTask.IsCompleted)
-                    {
-                        if (TryConsumeCancel(generationCts))
-                        {
-                            cancelledByUser = true;
-                            break;
-                        }
-
-                        await Task.WhenAny(completionTask, Task.Delay(50, sessionToken)).ConfigureAwait(false);
-                    }
-
-                    if (!cancelledByUser)
-                    {
-                        var completion = await completionTask.ConfigureAwait(false);
-                        if (completion.Error is not null)
-                        {
-                            error = completion.Error;
-                        }
-                        else
-                        {
-                            sb.Append(completion.Message.Content ?? string.Empty);
-                            _console.Write(sb.ToString());
-                        }
-                    }
-                }
+                var completion = await provider.CompleteAsync(request, generationCts.Token).WaitAsync(generationCts.Token).ConfigureAwait(false);
+                if (completion.Error is not null) error = completion.Error;
+                else { sb.Append(completion.Message.Content ?? string.Empty); _console.Write(sb.ToString()); }
             }
         }
         catch (OperationCanceledException) when (!sessionToken.IsCancellationRequested)
@@ -201,6 +180,8 @@ public sealed class ChatCommand
         }
         finally
         {
+            pumpEnd.Cancel();
+            await pump.ConfigureAwait(false);
             try
             {
                 _console.TreatControlCAsInput = originalTreatAsInput;
@@ -208,47 +189,30 @@ public sealed class ChatCommand
             catch
             {
             }
-
-            DrainPendingKeys();
         }
 
         return (sb.ToString(), cancelledByUser, error);
     }
 
-    private bool TryConsumeCancel(CancellationTokenSource generationCts)
+    private async Task PumpCancelAsync(CancellationTokenSource generationCts, CancellationToken end)
     {
-        if (!_console.KeyAvailable)
+        while (!end.IsCancellationRequested && !generationCts.IsCancellationRequested)
         {
-            return false;
-        }
-
-        try
-        {
-            var key = _console.ReadKey(intercept: true);
-            if (key.Key == ConsoleKey.C && (key.Modifiers & ConsoleModifiers.Control) != 0)
+            try
             {
-                try { generationCts.Cancel(); } catch (ObjectDisposedException) { }
-                return true;
+                if (_console.KeyAvailable)
+                {
+                    var key = _console.ReadKey(intercept: true);
+                    if (key.Key == ConsoleKey.C && (key.Modifiers & ConsoleModifiers.Control) != 0)
+                    {
+                        generationCts.Cancel();
+                        return;
+                    }
+                }
+                await Task.Delay(25, end).ConfigureAwait(false);
             }
-        }
-        catch
-        {
-        }
-
-        return false;
-    }
-
-    private void DrainPendingKeys()
-    {
-        try
-        {
-            while (_console.KeyAvailable)
-            {
-                _ = _console.ReadKey(intercept: true);
-            }
-        }
-        catch
-        {
+            catch (OperationCanceledException) { return; }
+            catch (InvalidOperationException) { return; }
         }
     }
 

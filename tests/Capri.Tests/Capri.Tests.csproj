@@ -33,10 +33,20 @@
     <ProjectReference Include="..\..\src\Capri.Voice\Capri.Voice.csproj" />
     <ProjectReference Include="..\..\src\Capri.Desktop\Capri.Desktop.csproj" />
     <ProjectReference Include="..\..\src\Capri.Cli\Capri.Cli.csproj" />
+    <ProjectReference Include="..\..\tools\Capri.CoordinationProbe\Capri.CoordinationProbe.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
+
+  <!-- The referenced subprocess is built in the same configuration. Stage its runnable
+       output alongside the tests rather than assuming a Release path in the repository. -->
+  <Target Name="CopyCoordinationProbe" AfterTargets="Build">
+    <ItemGroup>
+      <CoordinationProbeFile Include="$(MSBuildProjectDirectory)\..\..\tools\Capri.CoordinationProbe\bin\$(Configuration)\$(TargetFramework)\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CoordinationProbeFile)" DestinationFolder="$(TargetDir)CoordinationProbe" />
+  </Target>
 
 </Project>

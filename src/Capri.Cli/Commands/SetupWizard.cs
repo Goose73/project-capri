@@ -44,16 +44,7 @@ public sealed class SetupWizard
 
         if (!_console.IsInteractive)
         {
-            if (_repair)
-            {
-                // Compatibility for non-interactive invocation paths; interactive terminals run the full wizard.
-                _console.WriteLine("Guided setup wizard: interactive mode required; repair diagnostics available in a terminal.");
-                _console.WriteLine("Repair mode: run `capri setup --repair` in Windows Terminal for diagnostics and reconfiguration.");
-                _console.WriteLine("Milestone 2 setup wizard is implemented; this non-interactive path is not yet complete for full guided repair.");
-                return CliExitCodes.Success;
-            }
-
-            _console.WriteErrorLine("capri: `capri setup` is an interactive wizard and requires a terminal.");
+            _console.WriteErrorLine($"capri: `capri setup{(_repair ? " --repair" : string.Empty)}` is an interactive wizard and requires a terminal.");
             _console.WriteErrorLine("Use `capri config`, `capri models`, `capri providers test`, and `capri doctor` for non-interactive configuration and diagnostics.");
             return CliExitCodes.Usage;
         }
@@ -95,7 +86,7 @@ public sealed class SetupWizard
         InferenceTestResult inference = new(false, 0, "skipped", null);
         if (!string.IsNullOrWhiteSpace(working.Provider.ChatModel))
         {
-            inference = await RunInferenceTestAsync(working, cancellationToken).ConfigureAwait(false);
+            inference = await RunInferenceTestAsync(working, persistModelSelection: true, cancellationToken).ConfigureAwait(false);
         }
         else
         {
@@ -281,7 +272,6 @@ public sealed class SetupWizard
             }
 
             var isInstalled = localState.OllamaModels.Any(m => IsModelMatch(m.Name, selected));
-            if (!isInstalled && selectedCandidate?.Installed == true) isInstalled = true;
 
             if (!isInstalled)
             {
@@ -353,7 +343,7 @@ public sealed class SetupWizard
         }
     }
 
-    private async Task<InferenceTestResult> RunInferenceTestAsync(AppSettings settings, CancellationToken cancellationToken)
+    private async Task<InferenceTestResult> RunInferenceTestAsync(AppSettings settings, bool persistModelSelection, CancellationToken cancellationToken)
     {
         _console.WriteLine("Step 5/7 - Genuine inference test");
         _console.WriteLine($"  Sending actual request to configured provider/model: {settings.Provider.ProviderId}/{settings.Provider.ChatModel}");
@@ -366,11 +356,27 @@ public sealed class SetupWizard
             return new InferenceTestResult(false, 0, configError ?? "chat unavailable", null);
         }
 
-        // Ensure router/provider see current settings where possible. Update services settings already done before step 5? not yet; use provided settings context by temporarily relying on ChatCommandSupport reading services.Settings.Current.
-        // We saved? step 8 comes later. To make inference test work with newly selected model, temporarily update in-memory store current by saving before test? Better to save model selection first.
-        // But step 8 saves everything. For correctness, perform a provisional save of provider/model before test.
-        var preTestSave = settings;
-        try { await _services.Settings.UpdateAsync(preTestSave, cancellationToken).ConfigureAwait(false); } catch { }
+        // The router reads the settings store. Only reconfiguration needs an early save;
+        // diagnostics must never write, even when the on-disk file is damaged.
+        if (persistModelSelection && settings.Provider != _services.Settings.Current.Provider)
+        {
+            if (!CanSaveSettings())
+            {
+                _console.WriteErrorLine("  Result: FAIL - model configuration was not saved; inference test skipped.");
+                return new InferenceTestResult(false, 0, "settings file problem", null);
+            }
+            try
+            {
+                await _services.Settings.UpdateAsync(settings, cancellationToken).ConfigureAwait(false);
+                _console.WriteLine("  Model configuration saved before inference test. Cancelling setup later will not undo this save.");
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                _console.WriteErrorLine($"  Result: FAIL - could not save model configuration ({ex.GetType().Name}); inference test skipped.");
+                return new InferenceTestResult(false, 0, "model configuration could not be saved", null);
+            }
+        }
 
         ModelRoute route;
         try { route = await router!.ResolveAsync(new ModelRouteRequest(), cancellationToken).ConfigureAwait(false); }
@@ -442,6 +448,7 @@ public sealed class SetupWizard
         ui = ui with { StartMinimized = PromptYesNo("Start minimized?", ui.StartMinimized) };
         ui = ui with { AlwaysOnTop = PromptYesNo("Always on top?", ui.AlwaysOnTop) };
         ui = ui with { Theme = PromptChoice("Theme", ui.Theme, ThemeChoices) ?? ui.Theme };
+        ui = ui with { ReduceMotion = PromptYesNo("Reduce avatar motion?", ui.ReduceMotion) };
         var auto = settings.Automation;
         auto = auto with { Enabled = PromptYesNo("Enable automation features?", auto.Enabled) };
         auto = auto with { AllowAppLaunch = PromptYesNo("Allow app launch?", auto.AllowAppLaunch) };
@@ -455,12 +462,7 @@ public sealed class SetupWizard
 
     private async Task<bool> SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken)
     {
-        var inspection = SettingsFileInspector.Inspect(_services.Paths);
-        if (inspection.State is SettingsFileState.Empty or SettingsFileState.Malformed or SettingsFileState.Unreadable)
-        {
-            _console.WriteErrorLine($"capri: settings file problem: {inspection.Detail}");
-            return false;
-        }
+        if (!CanSaveSettings()) return false;
         try
         {
             await _services.Settings.UpdateAsync(settings, cancellationToken).ConfigureAwait(false);
@@ -474,6 +476,17 @@ public sealed class SetupWizard
             _console.WriteErrorLine($"capri: failed to save settings ({ex.GetType().Name}).");
             return false;
         }
+    }
+
+    private bool CanSaveSettings()
+    {
+        var inspection = SettingsFileInspector.Inspect(_services.Paths);
+        if (inspection.State is SettingsFileState.Empty or SettingsFileState.Malformed or SettingsFileState.Unreadable)
+        {
+            _console.WriteErrorLine($"capri: settings file problem: {inspection.Detail}");
+            return false;
+        }
+        return true;
     }
 
     private async Task MaybeRunIntroConversationAsync(AppSettings settings, CancellationToken cancellationToken)
@@ -562,7 +575,7 @@ public sealed class SetupWizard
         await DetectLocalProvidersAsync(settings, cancellationToken).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(settings.Provider.ChatModel))
         {
-            await RunInferenceTestAsync(settings, cancellationToken).ConfigureAwait(false);
+            await RunInferenceTestAsync(settings, persistModelSelection: false, cancellationToken).ConfigureAwait(false);
         }
         else
         {
@@ -669,20 +682,12 @@ public sealed class SetupWizard
             new RecommendedCandidate("gemma3:4b", "~3.3 GB (estimate)", "good on 6GB VRAM-class GPUs", "Compact option; verify tag/modality."),
             new RecommendedCandidate("qwen3.5:2b", "~1.5-2 GB (estimate)", "best fallback for tighter VRAM/RAM", "Fallback for smaller machines."),
         };
-        return list.Select(c => c with { Installed = IsModelMatchInstalled(c.Name, installedNames) }).ToArray();
-    }
-
-    private static bool IsModelMatchInstalled(string candidateName, HashSet<string> installed)
-    {
-        if (installed.Contains(candidateName)) return true;
-        var baseName = candidateName.Split(':')[0];
-        return installed.Any(name => string.Equals(name, baseName, StringComparison.OrdinalIgnoreCase) || string.Equals(name.Split(':')[0], baseName, StringComparison.OrdinalIgnoreCase));
+        return list.Select(c => c with { Installed = installedNames.Contains(c.Name) }).ToArray();
     }
 
     private static bool IsModelMatch(string installedName, string selected)
     {
-        return string.Equals(installedName, selected, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(installedName.Split(':')[0], selected.Split(':')[0], StringComparison.OrdinalIgnoreCase);
+        return string.Equals(installedName, selected, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? GetKnownApproxSize(string modelName)

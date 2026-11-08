@@ -188,9 +188,11 @@ public static class HelpText
                 capri start
                 capri gui
 
-                Launches the desktop application using the built Debug executable
-                when present, then Release/common fallback locations, otherwise
-                'dotnet run'. The desktop app owns advanced UI, automation, and
+                Launches the built Release executable when present; otherwise builds
+                and runs Release via 'dotnet run'. Debug binaries are never selected
+                implicitly. To run Debug explicitly, use
+                `dotnet run --project src/Capri.Desktop/Capri.Desktop.csproj -c Debug`.
+                The desktop app owns advanced UI, automation, and
                 experimental task features; CLI chat/ask use shared backend services.
                 """,
             _ => Full,

@@ -7,17 +7,17 @@ namespace Capri.Tests.Cli;
 public sealed class DesktopLaunchPlannerTests
 {
     [Fact]
-    public void PrefersDebugExecutable()
+    public void PrefersReleaseExecutableEvenWhenDebugExists()
     {
         using var temp = new TempDirectory();
-        var debug = CreateExecutable(temp.Path, "Debug");
-        CreateExecutable(temp.Path, "Release");
+        CreateExecutable(temp.Path, "Debug");
+        var release = CreateExecutable(temp.Path, "Release");
 
         var plan = DesktopLaunchPlanner.Create(temp.Path);
 
         Assert.Equal(DesktopLaunchKind.BuiltExecutable, plan.Kind);
-        Assert.Equal(debug, plan.FileName);
-        Assert.Equal(Path.GetDirectoryName(debug), plan.WorkingDirectory);
+        Assert.Equal(release, plan.FileName);
+        Assert.Equal(Path.GetDirectoryName(release), plan.WorkingDirectory);
     }
 
     [Fact]
@@ -47,7 +47,22 @@ public sealed class DesktopLaunchPlannerTests
         Assert.Equal("dotnet", plan.FileName);
         Assert.Contains("run", plan.Arguments);
         Assert.Contains(project, plan.Arguments);
+        Assert.Equal("Release", plan.Arguments[^1]);
         Assert.Equal(temp.Path, plan.WorkingDirectory);
+    }
+
+    [Fact]
+    public void DebugOnlyBuildDoesNotLaunchStaleDebugExecutable()
+    {
+        using var temp = new TempDirectory();
+        CreateExecutable(temp.Path, "Debug");
+        var projectDirectory = Path.Combine(temp.Path, "src", "Capri.Desktop");
+        File.WriteAllText(Path.Combine(projectDirectory, "Capri.Desktop.csproj"), "<Project />");
+
+        var plan = DesktopLaunchPlanner.Create(temp.Path);
+
+        Assert.Equal(DesktopLaunchKind.DotNetRun, plan.Kind);
+        Assert.Equal("Release", plan.Arguments[^1]);
     }
 
     [Fact]

@@ -26,7 +26,7 @@ public sealed partial class AvatarPresentationService : ObservableObject, IDispo
     [ObservableProperty]
     private AvatarState _displayState = AvatarState.Idle;
 
-    /// <summary>True when motion should be reduced (from UI settings/theme heuristics; defaults to false).</summary>
+    /// <summary>True when motion should be reduced according to saved UI settings.</summary>
     [ObservableProperty]
     private bool _reduceMotion;
 
@@ -55,10 +55,7 @@ public sealed partial class AvatarPresentationService : ObservableObject, IDispo
 
     private void ApplySettings(AppSettings settings)
     {
-        // AppSettings.Ui does not currently expose ReduceMotion; keep hook for future use and
-        // default to false (animations remain enabled) unless a theme/policy indicates otherwise.
-        _ = settings;
-        ReduceMotion = false;
+        ReduceMotion = settings.Ui.ReduceMotion;
     }
 
     private void OnStateChanged(object? sender, AvatarStateChangedEventArgs e)

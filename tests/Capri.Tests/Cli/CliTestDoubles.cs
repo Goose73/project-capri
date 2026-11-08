@@ -43,6 +43,12 @@ public sealed class FakeCliConsole : ICliConsole
 
     public string? ReadLine() => _input.Count == 0 ? null : _input.Dequeue();
 
+    public Task<string?> ReadLineAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(ReadLine());
+    }
+
     public void Clear()
     {
         // Clear is intentionally a no-op so assertions can inspect the transcript.

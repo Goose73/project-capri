@@ -201,20 +201,16 @@ public sealed class CliTaskApproval : ITaskApproval
 
     private Task<string?> ReadLineWithTimeoutAsync(TimeSpan timeout, CancellationToken cancellationToken)
     {
-        // ICliConsole.ReadLine blocks; run on threadpool with timeout and cancellation.
+        // No background Console.ReadLine: cancellation stops the input pump itself.
         // EOF returns null => reject.
-        var read = Task.Run(() => _console.ReadLine(), CancellationToken.None);
-        var delay = Task.Delay(timeout, cancellationToken);
-        return WaitAsync(read, delay, cancellationToken);
+        return ReadTimedAsync(timeout, cancellationToken);
     }
 
-    private static async Task<string?> WaitAsync(Task<string?> read, Task delay, CancellationToken cancellationToken)
+    private async Task<string?> ReadTimedAsync(TimeSpan timeout, CancellationToken cancellationToken)
     {
-        var completed = await Task.WhenAny(read, delay).ConfigureAwait(false);
-        if (completed == read)
-            return await read.ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        throw new OperationCanceledException(cancellationToken);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(timeout);
+        return await _console.ReadLineAsync(deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
     }
 
     private static string SafeSingleLine(string value, int max)

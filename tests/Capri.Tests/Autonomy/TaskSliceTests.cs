@@ -11,6 +11,7 @@ using Capri.Core.Autonomy;
 using Capri.Core.Models;
 using Capri.Tests.TestDoubles;
 using Capri.Security;
+using Capri.Security.Autonomy;
 using System.Text.Json;
 using NSubstitute;
 
@@ -18,6 +19,33 @@ namespace Capri.Tests.Autonomy;
 
 public sealed class TaskSliceTests
 {
+    [Fact]
+    public async Task ExternalStopCancelsBlockingApprovalWithoutWaitingForItToReturn()
+    {
+        using var temp = new TempDirectory();
+        var control = new FileTaskControl(new CapriPaths(temp.Path));
+        var provider = Substitute.For<IChatProvider>();
+        provider.CompleteAsync(Arg.Any<ChatRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new ChatCompletion(new ChatMessage(ChatRole.Assistant, "{\"steps\":[{\"tool\":\"launch_app\",\"target\":\"notepad\"}]}")));
+        var router = Substitute.For<IModelRouter>();
+        router.ResolveAsync(Arg.Any<ModelRouteRequest>(), Arg.Any<CancellationToken>()).Returns(new ModelRoute("fake", "fake"));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var never = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var approval = Substitute.For<ITaskApproval>();
+        approval.ApproveAsync(Arg.Any<TaskPlan>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            entered.TrySetResult();
+            return never.Task;
+        });
+        var executor = Substitute.For<ITaskExecutor>();
+        var coordinator = new TaskCoordinator(provider, router, approval, executor, Substitute.For<ITaskJournal>(), control);
+        var running = Collect(coordinator.RunAsync("launch"));
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        control.RequestStop();
+        control.ResetStop();
+        Assert.Equal(TaskPhase.Cancelled, (await running.WaitAsync(TimeSpan.FromSeconds(5)))[^1].Phase);
+        await executor.DidNotReceiveWithAnyArgs().ExecuteAsync(default!, default, default);
+    }
     [Fact]
     public async Task ConcurrentJournalInstancesPublishOnlyCompleteMetadata()
     {

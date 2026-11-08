@@ -35,8 +35,8 @@ public sealed class TaskControlTests
     {
         using var temp = new TempDirectory();
         var control = new FileTaskControl(new CapriPaths(temp.Path));
-        var a = new TaskOwnership(Guid.NewGuid(), Environment.ProcessId, DateTimeOffset.UtcNow, Environment.MachineName);
-        var b = new TaskOwnership(Guid.NewGuid(), Environment.ProcessId, DateTimeOffset.UtcNow, Environment.MachineName);
+        var a = Claim();
+        var b = Claim();
 
         Assert.True(control.TryAcquire(a));
         Assert.False(control.TryAcquire(b));
@@ -54,7 +54,7 @@ public sealed class TaskControlTests
         var paths = new CapriPaths(temp.Path);
         var c1 = new FileTaskControl(paths);
         var c2 = new FileTaskControl(paths);
-        var claim = new TaskOwnership(Guid.NewGuid(), Environment.ProcessId, DateTimeOffset.UtcNow, Environment.MachineName);
+        var claim = Claim();
 
         Assert.True(c1.TryAcquire(claim));
         Assert.Equal(claim.TaskId, c2.GetActive()?.TaskId);
@@ -69,9 +69,9 @@ public sealed class TaskControlTests
         var paths = new CapriPaths(temp.Path);
         var writer = new FileTaskControl(paths);
         var reader = new FileTaskControl(paths);
-        var claim = new TaskOwnership(Guid.NewGuid(), Environment.ProcessId, DateTimeOffset.UtcNow, Environment.MachineName);
+        var claim = Claim();
         Assert.True(writer.TryAcquire(claim));
-        var other = new TaskOwnership(Guid.NewGuid(), Environment.ProcessId, DateTimeOffset.UtcNow, Environment.MachineName);
+        var other = Claim();
         Assert.False(reader.TryAcquire(other));
         writer.Release(claim.TaskId);
         Assert.True(reader.TryAcquire(other));
@@ -125,7 +125,8 @@ public sealed class TaskControlTests
         var paths = new CapriPaths(temp.Path);
         var control = new FileTaskControl(paths);
         control.RequestStop("x");
-        control.TryAcquire(new TaskOwnership(Guid.NewGuid(), Environment.ProcessId, DateTimeOffset.UtcNow, Environment.MachineName));
+        control.ResetStop();
+        control.TryAcquire(Claim());
 
         var tasksDir = Path.Combine(temp.Path, "tasks");
         Assert.True(File.Exists(Path.Combine(tasksDir, "stop.json")));
@@ -134,5 +135,27 @@ public sealed class TaskControlTests
         var stopJson = File.ReadAllText(Path.Combine(tasksDir, "stop.json"));
         Assert.DoesNotContain("password", stopJson, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("apiKey", stopJson, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static TaskOwnership Claim() => new(Guid.NewGuid(), Environment.ProcessId,
+        System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime(), Environment.MachineName);
+
+    [Fact]
+    public void LiveOwnerDoesNotExpireAndCorruptionFailsClosed()
+    {
+        using var temp = new TempDirectory();
+        var control = new FileTaskControl(new CapriPaths(temp.Path), TimeSpan.FromMilliseconds(1));
+        var claim = Claim();
+        Assert.True(control.TryAcquire(claim));
+        Thread.Sleep(25);
+        Assert.Equal(claim.TaskId, control.GetActive()?.TaskId);
+        control.Release(claim.TaskId);
+        var active = Path.Combine(temp.Path, "tasks", "active.json");
+        File.WriteAllText(active, "broken");
+        Assert.Throws<InvalidDataException>(() => control.TryAcquire(Claim()));
+        Assert.True(File.Exists(active));
+        File.WriteAllText(Path.Combine(temp.Path, "tasks", "stop.json"), "broken");
+        Assert.Throws<InvalidDataException>(() => control.ResetStop());
+        Assert.Throws<InvalidDataException>(() => control.RequestStop());
     }
 }

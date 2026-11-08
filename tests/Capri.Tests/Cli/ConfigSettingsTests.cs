@@ -17,6 +17,7 @@ public sealed class ConfigSettingsTests
         Assert.Equal(true, ConfigSettings.GetValue(settings, "provider.freeOnly"));
         Assert.Equal(false, ConfigSettings.GetValue(settings, "provider.allowCloud"));
         Assert.Equal(250, ConfigSettings.GetValue(settings, "ui.characterHeight"));
+        Assert.Equal(false, ConfigSettings.GetValue(settings, "ui.reduceMotion"));
     }
 
     [Theory]
@@ -99,6 +100,16 @@ public sealed class ConfigSettingsTests
             out _);
 
         Assert.False(success);
+    }
+
+    [Fact]
+    public void ReduceMotionAcceptsBooleanAndRejectsInvalidValues()
+    {
+        var initial = CapriDefaultSettings.Create();
+        Assert.True(ConfigSettings.TrySet(initial, "ui.reduceMotion", "true", out var updated, out _));
+        Assert.True(updated.Ui.ReduceMotion);
+        Assert.False(initial.Ui.ReduceMotion);
+        Assert.False(ConfigSettings.TrySet(initial, "ui.reduceMotion", "maybe", out _, out _));
     }
 
     [Theory]

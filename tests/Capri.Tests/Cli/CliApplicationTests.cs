@@ -37,16 +37,15 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
-    public async Task SetupIsHonestAndReturnsSuccess()
+    public async Task NonInteractiveRepairReturnsUsageInsteadOfPretendingSuccess()
     {
         using var fixture = new ApplicationFixture();
 
         var exitCode = await fixture.Application.RunAsync(CliParser.Parse(["setup", "--repair"]));
 
-        Assert.Equal(CliExitCodes.Success, exitCode);
-        Assert.Contains("Milestone 2", fixture.Console.Out, StringComparison.Ordinal);
-        Assert.Contains("not yet complete", fixture.Console.Out, StringComparison.Ordinal);
-        Assert.Contains("Repair mode", fixture.Console.Out, StringComparison.Ordinal);
+        Assert.Equal(CliExitCodes.Usage, exitCode);
+        Assert.Contains("--repair", fixture.Console.Error, StringComparison.Ordinal);
+        Assert.Contains("interactive", fixture.Console.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

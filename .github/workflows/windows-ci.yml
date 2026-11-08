@@ -27,6 +27,19 @@ jobs:
       - name: Test
         run: dotnet test tests/Capri.Tests/Capri.Tests.csproj -c Release --no-build --logger "trx;LogFileName=test-results.trx"
 
+      - name: Safe Release CLI smoke (no provider requests)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue' # PowerShell 5.1 treats redirected native stderr as a nonterminating error.
+          $env:CAPRI_DATA_DIR = Join-Path $env:RUNNER_TEMP 'capri-ci-smoke'
+          $cli = 'src/Capri.Cli/bin/Release/net10.0-windows/capri.exe'
+          & $cli help | Out-String | Write-Output
+          if ($LASTEXITCODE -ne 0) { throw "CLI help failed: $LASTEXITCODE" }
+          'no' | & $cli task smoke 2>&1 | Out-String | Write-Output
+          if ($LASTEXITCODE -ne 2) { throw "Piped task must refuse with exit 2; got $LASTEXITCODE" }
+          'no' | & $cli setup --repair 2>&1 | Out-String | Write-Output
+          if ($LASTEXITCODE -ne 2) { throw "Piped setup --repair must refuse with exit 2; got $LASTEXITCODE" }
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

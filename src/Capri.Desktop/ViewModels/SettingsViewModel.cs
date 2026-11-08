@@ -77,6 +77,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     private int _characterHeight = 250;
 
     [ObservableProperty]
+    private bool _reduceMotion;
+
+    [ObservableProperty]
     private bool _allowCloudInference;
 
     [ObservableProperty]
@@ -217,6 +220,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             AllowWebLaunch = current.Automation.AllowWebLaunch;
             AllowMediaControl = current.Automation.AllowMediaControl;
             CharacterHeight = Math.Clamp(current.Ui.CharacterHeight, 150, 400);
+            ReduceMotion = current.Ui.ReduceMotion;
             SelectedPreset = FindPreset(current.Provider.ProviderId, current.Provider.BaseUrl);
         }
         finally
@@ -341,7 +345,8 @@ public sealed partial class SettingsViewModel : ObservableObject
                 },
                 Ui = current.Ui with
                 {
-                    CharacterHeight = Math.Clamp(CharacterHeight, 150, 400)
+                    CharacterHeight = Math.Clamp(CharacterHeight, 150, 400),
+                    ReduceMotion = ReduceMotion
                 }
             };
 

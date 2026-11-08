@@ -1,3 +1,4 @@
+using System.IO;
 using Capri.Cli;
 using Capri.Cli.Commands;
 using Capri.Cli.Services;
@@ -139,6 +140,69 @@ public sealed class SetupWizardTests
     }
 
     [Fact]
+    public async Task RunAsyncDiagnosticsOnlyNeverUpdatesOrOverwritesMalformedSettings()
+    {
+        var initial = new AppSettings
+        {
+            Provider = new AppSettings.ProviderSettings { ProviderId = "ollama", ChatModel = "gemma3:4b" },
+        };
+        using var fixture = new SetupFixture(settings: initial, chatProvider: StubSuccessProvider("Capri ready"), input: ["2"]);
+        var badJson = "{ invalid settings";
+        Directory.CreateDirectory(Path.GetDirectoryName(fixture.Services.Paths.SettingsFile)!);
+        File.WriteAllText(fixture.Services.Paths.SettingsFile, badJson);
+        var updates = 0;
+        fixture.Services.Settings.Changed += (_, _) => updates++;
+
+        var exitCode = await fixture.RunAsync(repair: true);
+
+        Assert.Equal(CliExitCodes.Success, exitCode);
+        Assert.Contains("Diagnostics complete", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, updates);
+        Assert.Equal(badJson, File.ReadAllText(fixture.Services.Paths.SettingsFile));
+    }
+
+    [Fact]
+    public async Task RunAsyncMalformedSettingsPreventsProvisionalAndFinalSave()
+    {
+        using var fixture = new SetupFixture(
+            settings: new AppSettings(),
+            models: [new OllamaModelInfo { Name = "qwen3.5:4b" }],
+            chatProvider: StubSuccessProvider("Capri ready"),
+            input: ["1", "s", "s", "s", "s", "s", "s", "s", "s", "s", "s", "s", "s"]);
+        var badJson = "{ invalid settings";
+        Directory.CreateDirectory(Path.GetDirectoryName(fixture.Services.Paths.SettingsFile)!);
+        File.WriteAllText(fixture.Services.Paths.SettingsFile, badJson);
+        var updates = 0;
+        fixture.Services.Settings.Changed += (_, _) => updates++;
+
+        var exitCode = await fixture.RunAsync(repair: false);
+
+        Assert.Equal(CliExitCodes.Error, exitCode);
+        Assert.Equal(0, updates);
+        Assert.Equal(badJson, File.ReadAllText(fixture.Services.Paths.SettingsFile));
+        Assert.Contains("settings file problem", fixture.Console.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("4")]
+    [InlineData("gemma3:4b")]
+    public async Task RunAsyncDifferentInstalledTagStillOffersDownload(string choice)
+    {
+        using var fixture = new SetupFixture(
+            settings: new AppSettings(),
+            models: [new OllamaModelInfo { Name = "gemma3:1b" }],
+            input: [choice, "n", "c"]);
+
+        var exitCode = await fixture.RunAsync(repair: false);
+
+        Assert.Equal(CliExitCodes.Success, exitCode);
+        Assert.Contains("Model not installed locally: gemma3:4b", fixture.Console.Out, StringComparison.Ordinal);
+        Assert.DoesNotContain("gemma3:4b [installed]", fixture.Console.Out, StringComparison.Ordinal);
+        Assert.Equal(0, fixture.Ollama.PullCalls);
+        Assert.NotEqual("gemma3:4b", fixture.Services.Settings.Current.Provider.ChatModel);
+    }
+
+    [Fact]
     public async Task RunAsyncCancelAtResumeMakesNoChanges()
     {
         var initial = new AppSettings
@@ -163,6 +227,19 @@ public sealed class SetupWizardTests
 
         Assert.Equal(CliExitCodes.Usage, exitCode);
         Assert.Contains("interactive", fixture.Console.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RunAsyncNonInteractiveRepairRefusesWithoutChangingSettings()
+    {
+        using var fixture = new SetupFixture(interactive: false);
+        var initial = fixture.Services.Settings.Current;
+
+        var exitCode = await fixture.RunAsync(repair: true);
+
+        Assert.Equal(CliExitCodes.Usage, exitCode);
+        Assert.Contains("--repair", fixture.Console.Error, StringComparison.Ordinal);
+        Assert.Equal(initial, fixture.Services.Settings.Current);
     }
 
     private static StubChatProvider StubSuccessProvider(string text)
