@@ -29,7 +29,7 @@ public static class HelpText
                                          Send a question to the configured provider
           capri chat                     Interactive chat with the configured provider
           capri providers test [--json]  Run an actual inference test with the configured provider
-          capri setup [--repair]         Guided setup (planned for Milestone 2)
+          capri setup [--repair]         Interactive first-run setup/repair wizard
           capri start                    Launch the desktop app
           capri gui                      Alias for 'capri start'
           capri help [command]           Show help
@@ -91,9 +91,19 @@ public static class HelpText
             "setup" => """
                 capri setup [--repair]
 
-                The guided setup wizard is planned for Milestone 2 and is not yet
-                implemented. Use 'capri config' for safe settings or the desktop
-                Settings window for provider credentials.
+                Interactive guided setup wizard. Detects hardware (best-effort),
+                checks local Ollama/LM Studio reachability and installed Ollama models,
+                recommends free local models, lets you choose/download a model with
+                explicit confirmation (no silent downloads), runs a genuine inference
+                test ("Reply with: Capri ready"), configures voice/UI/automation
+                preferences in shared settings, and can run a short intro conversation.
+
+                --repair focuses on diagnostics and reconfiguration. Local AI does not
+                require an API key; secrets are never displayed; cloud consent is never
+                enabled silently.
+
+                GUI access: run `capri setup` in Windows Terminal. Desktop integration
+                may launch/access the CLI setup where supported.
                 """,
             "models" => """
                 capri models list [--json]

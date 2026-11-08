@@ -1,36 +1,28 @@
+using Capri.Cli.Services;
+
 namespace Capri.Cli.Commands;
 
 /// <summary>
-/// Honest guided-setup placeholder. The wizard is a Milestone 2 deliverable;
-/// this command must not pretend otherwise.
+/// Guided first-run setup wizard entry point. Supports repair/diagnostics mode.
 /// </summary>
-public static class SetupCommand
+public sealed class SetupCommand
 {
-    /// <summary>Prints the current setup guidance and returns success.</summary>
-    public static int Execute(bool repair, ICliConsole console)
+    private readonly ICliConsole _console;
+    private readonly ICliServices _services;
+    private readonly IEndpointProbe _endpointProbe;
+
+    public SetupCommand(ICliConsole console, ICliServices services, IEndpointProbe endpointProbe)
     {
-        ArgumentNullException.ThrowIfNull(console);
+        _console = console ?? throw new ArgumentNullException(nameof(console));
+        _services = services ?? throw new ArgumentNullException(nameof(services));
+        _endpointProbe = endpointProbe ?? throw new ArgumentNullException(nameof(endpointProbe));
+    }
 
-        console.WriteLine("Guided setup wizard: Milestone 2 (not yet complete).");
-        console.WriteLine("Use `capri config` or desktop Settings.");
-        console.WriteLine(string.Empty);
-
-        if (repair)
-        {
-            console.WriteLine("Repair mode is also planned for Milestone 2 and is not implemented.");
-            console.WriteLine("Run `capri doctor` to diagnose the current installation.");
-        }
-        else
-        {
-            console.WriteLine("For now:");
-            console.WriteLine("  - `capri status` shows the active provider, model, and key presence.");
-            console.WriteLine("  - `capri doctor` checks settings, local endpoints, and DPAPI.");
-            console.WriteLine("  - `capri config list` shows safe settings; `capri config set` changes them.");
-            console.WriteLine("  - Enter API keys only in the desktop Settings window.");
-        }
-
-        console.WriteLine(string.Empty);
-        console.WriteLine("No changes were made.");
-        return CliExitCodes.Success;
+    /// <summary>Runs the setup wizard.</summary>
+    public Task<int> ExecuteAsync(bool repair, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var wizard = new SetupWizard(_console, _services, _endpointProbe, repair);
+        return wizard.RunAsync(cancellationToken);
     }
 }

@@ -11,6 +11,7 @@ public sealed class CliApplication
 {
     private readonly ICliConsole _console;
     private readonly ICliServices _services;
+    private readonly IEndpointProbe _probe;
     private readonly StatusCommand _status;
     private readonly DoctorCommand _doctor;
     private readonly ConfigCommand _config;
@@ -18,6 +19,7 @@ public sealed class CliApplication
     private readonly AskCommand _ask;
     private readonly ChatCommand _chat;
     private readonly ProvidersCommand _providers;
+    private readonly SetupCommand _setup;
     private readonly DashboardCommand _dashboard;
     private readonly IDesktopLauncher _launcher;
 
@@ -32,7 +34,7 @@ public sealed class CliApplication
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _services = services ?? throw new ArgumentNullException(nameof(services));
-        ArgumentNullException.ThrowIfNull(probe);
+        _probe = probe ?? throw new ArgumentNullException(nameof(probe));
         _launcher = launcher ?? throw new ArgumentNullException(nameof(launcher));
         ArgumentNullException.ThrowIfNull(dpapiProbe);
 
@@ -44,6 +46,7 @@ public sealed class CliApplication
         _ask = new AskCommand(console, services);
         _chat = new ChatCommand(console, services);
         _providers = new ProvidersCommand(console, services);
+        _setup = new SetupCommand(console, services, probe);
         _dashboard = new DashboardCommand(console, _status, _doctor, _config, launcher, ct => _chat.ExecuteAsync(ct));
     }
 
@@ -113,7 +116,13 @@ public sealed class CliApplication
                 return await _providers.ExecuteAsync(invocation, cancellationToken).ConfigureAwait(false);
 
             case CliCommandKind.Setup:
-                return SetupCommand.Execute(invocation.Repair, _console);
+                if (invocation.Json)
+                {
+                    _console.WriteErrorLine("capri: `capri setup` is interactive and does not support --json. Use `capri status --json`, `capri config`, `capri models`, or `capri providers test --json`.");
+                    return CliExitCodes.Usage;
+                }
+
+                return await _setup.ExecuteAsync(invocation.Repair, cancellationToken).ConfigureAwait(false);
 
             case CliCommandKind.Start:
             case CliCommandKind.Gui:
