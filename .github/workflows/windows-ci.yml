@@ -40,6 +40,8 @@ jobs:
           if ($LASTEXITCODE -ne 2) { throw "Piped task must refuse with exit 2; got $LASTEXITCODE" }
           'no' | & $cli setup --repair 2>&1 | Out-String | Write-Host
           if ($LASTEXITCODE -ne 2) { throw "Piped setup --repair must refuse with exit 2; got $LASTEXITCODE" }
+          $global:LASTEXITCODE = 0
+          exit 0
 
       - name: Upload test results
         if: always()
