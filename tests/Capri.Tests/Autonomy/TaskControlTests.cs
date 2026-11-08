@@ -1,4 +1,6 @@
 using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text.Json;
 using Capri.Core.Autonomy;
 using Capri.Security;
@@ -135,6 +137,28 @@ public sealed class TaskControlTests
         var stopJson = File.ReadAllText(Path.Combine(tasksDir, "stop.json"));
         Assert.DoesNotContain("password", stopJson, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("apiKey", stopJson, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void NewlyCreatedTasksDirectoryHasCurrentUserOwnerAndProtectedAcl()
+    {
+        using var temp = new TempDirectory();
+        var control = new FileTaskControl(new CapriPaths(temp.Path));
+        control.RequestStop("initialize");
+
+        var tasks = new DirectoryInfo(Path.Combine(temp.Path, "tasks"));
+        var security = tasks.GetAccessControl();
+        using var identity = WindowsIdentity.GetCurrent();
+        Assert.Equal(identity.User, security.GetOwner(typeof(SecurityIdentifier)));
+        Assert.True(security.AreAccessRulesProtected);
+        Assert.All(security.GetAccessRules(true, true, typeof(SecurityIdentifier)).Cast<FileSystemAccessRule>(), rule =>
+        {
+            if (rule.AccessControlType == AccessControlType.Allow &&
+                !identity.User!.Equals(rule.IdentityReference) &&
+                !rule.IdentityReference.Value.Equals("S-1-5-18", StringComparison.Ordinal) &&
+                !rule.IdentityReference.Value.Equals("S-1-5-32-544", StringComparison.Ordinal))
+                Assert.Equal((FileSystemRights)0, rule.FileSystemRights & (FileSystemRights.Write | FileSystemRights.Modify | FileSystemRights.FullControl | FileSystemRights.Delete));
+        });
     }
 
     private static TaskOwnership Claim() => new(Guid.NewGuid(), Environment.ProcessId,

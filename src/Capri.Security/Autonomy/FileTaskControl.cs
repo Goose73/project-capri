@@ -222,9 +222,9 @@ public sealed class FileTaskControl : ITaskControl
     {
         // Root must be private to the signed-in user. Never follow a junction/symlink
         // into an attacker-controlled coordination directory or metadata file.
-        Directory.CreateDirectory(_paths.Root);
+        CreatePrivateDirectoryIfMissing(_paths.Root);
         ValidateDirectory(_paths.Root);
-        Directory.CreateDirectory(TasksDir);
+        CreatePrivateDirectoryIfMissing(TasksDir);
         ValidateDirectory(TasksDir);
         ValidatePath(LockPath);
         var deadline = Stopwatch.StartNew();
@@ -233,6 +233,26 @@ public sealed class FileTaskControl : ITaskControl
             try { return new FileStream(LockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
             catch (IOException) when (deadline.Elapsed < TimeSpan.FromSeconds(10)) { Thread.Sleep(10); }
         }
+    }
+
+    private static void CreatePrivateDirectoryIfMissing(string path)
+    {
+        if (Directory.Exists(path)) return;
+
+        using var identity = WindowsIdentity.GetCurrent();
+        var sid = identity.User ?? throw new UnauthorizedAccessException("Current user identity unavailable.");
+        var security = new DirectorySecurity();
+        security.SetOwner(sid);
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        const InheritanceFlags inheritance = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+        security.AddAccessRule(new FileSystemAccessRule(sid, FileSystemRights.FullControl, inheritance, PropagationFlags.None, AccessControlType.Allow));
+        security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier("S-1-5-18"), FileSystemRights.FullControl, inheritance, PropagationFlags.None, AccessControlType.Allow));
+        security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier("S-1-5-32-544"), FileSystemRights.FullControl, inheritance, PropagationFlags.None, AccessControlType.Allow));
+
+        // Create with the intended owner and DACL, rather than creating permissively
+        // and repairing security after another process could access the directory.
+        try { new DirectoryInfo(path).Create(security); }
+        catch (IOException) when (Directory.Exists(path)) { }
     }
 
     private static void ValidateDirectory(string path)
