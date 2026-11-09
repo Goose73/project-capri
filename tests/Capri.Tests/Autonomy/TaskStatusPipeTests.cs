@@ -20,7 +20,7 @@ public sealed class TaskStatusPipeTests
         var running = Task.Run(() => TaskStatusPipe.ServeAsync(control, cancellation.Token, name));
         try
         {
-            var status = await TaskStatusPipe.QueryAsync(CancellationToken.None, name);
+            var status = await QueryWhenReadyAsync(name);
             Assert.NotNull(status);
             Assert.Equal(1, status.Version);
             Assert.Equal(taskId, status.ActiveTaskId);
@@ -90,6 +90,17 @@ public sealed class TaskStatusPipeTests
 
     private static string TestPipeName() =>
         TaskStatusPipe.CurrentUserPipeName() + "-test-" + Guid.NewGuid().ToString("N");
+
+    private static async Task<TaskDesktopStatus?> QueryWhenReadyAsync(string name)
+    {
+        for (var i = 0; i < 20; i++)
+        {
+            var status = await TaskStatusPipe.QueryAsync(CancellationToken.None, name);
+            if (status is not null) return status;
+            await Task.Delay(50);
+        }
+        return null;
+    }
 
     private static async Task AssertCancelledOrCompletedAsync(Task running)
     {
