@@ -11,6 +11,12 @@ namespace Capri.Desktop.Services;
 /// </summary>
 public sealed class DesktopTaskStatusPipeService : BackgroundService
 {
+    private static readonly Action<ILogger, Exception?> LogUnavailable =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(5101, "TaskStatusIpcUnavailable"),
+            "Read-only task status IPC is unavailable; desktop task control remains local.");
+
     private readonly ITaskControl _control;
     private readonly ILogger<DesktopTaskStatusPipeService> _logger;
 
@@ -36,8 +42,7 @@ public sealed class DesktopTaskStatusPipeService : BackgroundService
         {
             // Status IPC is optional. Fail closed and leave the desktop, existing
             // task coordinator, and approval workflow independent of the listener.
-            _logger.LogWarning(exception,
-                "Read-only task status IPC is unavailable; desktop task control remains local.");
+            LogUnavailable(_logger, exception);
         }
     }
 }
