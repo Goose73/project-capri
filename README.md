@@ -1,12 +1,10 @@
 # Project Capri
 
+**Scope decision (2026-11-09):** The optional Raspberry Pi Hub feature was removed because it was unnecessary for the current Project Capri goals. The PC's existing remote Wake-on-LAN/Tailscale setup already works independently. Prioritize supervised M4 acceptance and the Windows M5 shared task authority; do not reintroduce a Pi Hub without an explicit new request. See [development progress](docs/PROGRESS.md).
+
 **Project Capri** is an AI-powered Windows desktop companion (C# / WPF / .NET 10) inspired by a stylized digital character aesthetic. It aims to provide voice/text interaction, configurable AI providers, permission-controlled Windows automation, and an animated character overlay.
 
 > **Unofficial fan-inspired project.** Not affiliated with or endorsed by CD PROJEKT RED or Netflix.
-
-## Optional Raspberry Pi Hub (experimental)
-
-The independent `src/Capri.Hub` project adds a Linux ARM64 status monitor and an explicitly confirmed, local-only Wake-on-LAN command. It starts **no inbound API server**, does not run local AI models, and does not change Home Assistant, Tailscale, Docker or existing Pi services. A separate Linux workflow tests it and produces an ARM64 artifact. This is source and CI work only; **deployment and real Raspberry Pi acceptance are pending**. See [Pi Hub guide](docs/PI-HUB.md).
 
 ## Current development status
 

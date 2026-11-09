@@ -1,5 +1,13 @@
 # Development progress
 
+## 2026-11-09 — Raspberry Pi Hub removed (scope decision)
+
+**Removed as unnecessary for the current project.** The optional Pi Hub introduced in PR #7 / commit `d2d165b` was not required: remote Wake-on-LAN and Tailscale were already working outside Capri, and the added Linux/ARM64 monitoring component would duplicate existing infrastructure. This is a user-requested removal, not a security incident or failed live deployment.
+
+Removed the entire `src/Capri.Hub/` implementation, `tests/Capri.Hub.Tests/` test project, `.github/workflows/pi-hub-ci.yml`, `docs/PI-HUB.md`, and the roadmap/README feature entries. The Windows-only Project Capri functionality is unchanged. The Linux Pi Hub was never deployed to the Raspberry Pi by this project, and no device services or configurations have been modified.
+
+**OpenCode handoff:** Do not resume the abandoned `feat/pi-hub-foundation` or `feat/pi-hub-service` experiments, install Pi software, or recreate a Raspberry Pi Hub unless the user explicitly asks again. Continue the Windows roadmap: real supervised M4 acceptance; M5 shared GUI/CLI task authority, permissions, cancellation and tests; then voice and installer work. Historical Git commits/PR discussions remain as audit history but are not active product features.
+
 ## 2026-11-08 - Cooperative hardening follow-up (not M5 completion)
 
 Exclusive cross-process lock, current-user ACL/reparse validation, real PID start identity, fail-closed corrupt state, shared stop monitor cancellation (coordinator cancels waits/queued work; cannot force uncooperative in-flight completion), cancellable approval input, and independent chat cancellation pump are implemented locally. Setup changes recorded: diagnostics-only path with no saves, guarded provisional saves, exact tag matching. Reduced motion is persisted; Release launcher and CI smoke are recorded.
