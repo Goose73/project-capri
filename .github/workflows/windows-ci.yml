@@ -6,9 +6,20 @@ on:
   pull_request:
     branches: ["**"]
 
+# CI only reads source and uploads test artifacts; it never needs write access.
+permissions:
+  contents: read
+
+# Keep concurrent runs independent so an updated PR cannot cancel evidence
+# for an earlier SHA while its checks are still being inspected.
+concurrency:
+  group: windows-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-test:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,4 +60,4 @@ jobs:
         with:
           name: test-results
           path: "**/TestResults/*.trx"
-          if-no-files-found: warn
+          if-no-files-found: error
