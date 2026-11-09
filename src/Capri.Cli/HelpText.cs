@@ -180,7 +180,10 @@ public static class HelpText
                 `task stop` latches emergency stop and reports active ownership; queued work
                 is cancelled but an already-dispatched external action may have occurred.
                 `task reset-stop` allows future tasks only and never revives cancelled tasks.
-                Status/history output is metadata only.\n                `desktop-status` queries read-only stop/active-task metadata from a\n                Windows current-user named pipe owned by the desktop process. It\n                never creates tasks, approves plans or executes actions.
+                Status/history output is metadata only.
+                `desktop-status` queries read-only stop/active-task metadata from a
+                Windows current-user named pipe owned by the desktop process. It
+                never creates tasks, approves plans or executes actions.
                 """,
             "tasks" => """
                 capri tasks [--json]
