@@ -48,7 +48,7 @@ public sealed class CliApplication
         _chat = new ChatCommand(console, services);
         _providers = new ProvidersCommand(console, services);
         _setup = new SetupCommand(console, services, probe);
-        _task = new TaskCommand(console, services);
+        _task = new TaskCommand(console, services, allowLocalFallback: false);
         _dashboard = new DashboardCommand(console, _status, _doctor, _config, _task, launcher, ct => _chat.ExecuteAsync(ct));
     }
 
@@ -125,6 +125,12 @@ public sealed class CliApplication
                 }
 
                 return await _setup.ExecuteAsync(invocation.Repair, cancellationToken).ConfigureAwait(false);
+
+            case CliCommandKind.Authority:
+                if (invocation.Arguments.Count > 0 && string.Equals(invocation.Arguments[0], "serve", StringComparison.OrdinalIgnoreCase))
+                    return await TaskAuthorityHostRunner.ServeAsync(_services, cancellationToken).ConfigureAwait(false);
+                _console.WriteErrorLine("capri: usage: capri authority serve");
+                return CliExitCodes.Usage;
 
             case CliCommandKind.Task:
             case CliCommandKind.Tasks:

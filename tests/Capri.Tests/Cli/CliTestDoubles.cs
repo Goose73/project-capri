@@ -96,6 +96,8 @@ public sealed class StubCliServices : ICliServices
 
     public ITaskJournal? TaskJournal { get; set; }
 
+    public Capri.Core.Autonomy.Authority.ITaskAuthorityClient? TaskAuthority { get; set; }
+
     public static StubCliServices CreateInTemp(
         string tempPath,
         AppSettings? settings = null,
