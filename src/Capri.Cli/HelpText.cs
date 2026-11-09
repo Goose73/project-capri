@@ -32,6 +32,7 @@ public static class HelpText
           capri task "<request>"         Plan and run a local AI task (interactive approval required)
           capri tasks [--json]           List recent task metadata
           capri task status <id> [--json]
+          capri task watch <id> [--json] Follow task metadata changes across processes
           capri task stop [--json]       Latch emergency stop (cancels queued work)
           capri task reset-stop [--json] Reset emergency stop for future tasks
           capri task history [--json]    Show task-history metadata
@@ -156,6 +157,7 @@ public static class HelpText
             "task" => """
                 capri task "<request>"
                 capri task status <id> [--json]
+                capri task watch <id> [--json]
                 capri task stop [--json]
                 capri task reset-stop [--json]
                 capri task history [--json]
