@@ -280,6 +280,26 @@ public sealed class CliParserTests
         Assert.True(invocation.IsValid);
     }
 
+
+    [Fact]
+    public void DesktopStatusParsesAsReadOnlyTaskCommand()
+    {
+        var invocation = CliParser.Parse(["task", "desktop-status", "--json"]);
+        Assert.True(invocation.IsValid);
+        Assert.Equal(CliCommandKind.Task, invocation.Kind);
+        Assert.Equal(["desktop-status"], invocation.Arguments);
+        Assert.True(invocation.Json);
+    }
+
+    [Theory]
+    [InlineData("extra")]
+    [InlineData("--unexpected")]
+    public void DesktopStatusRejectsUnexpectedArguments(string argument)
+    {
+        var invocation = CliParser.Parse(["task", "desktop-status", argument]);
+        Assert.False(invocation.IsValid);
+    }
+
     [Fact]
     public void TaskExecutionRejectsJson()
     {

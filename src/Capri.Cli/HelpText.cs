@@ -33,6 +33,7 @@ public static class HelpText
           capri tasks [--json]           List recent task metadata
           capri task status <id> [--json]
           capri task watch <id> [--json] Follow task metadata changes across processes
+          capri task desktop-status [--json] Query the running desktop via local user-only IPC
           capri task stop [--json]       Latch emergency stop (cancels queued work)
           capri task reset-stop [--json] Reset emergency stop for future tasks
           capri task history [--json]    Show task-history metadata
@@ -158,6 +159,7 @@ public static class HelpText
                 capri task "<request>"
                 capri task status <id> [--json]
                 capri task watch <id> [--json]
+                capri task desktop-status [--json]
                 capri task stop [--json]
                 capri task reset-stop [--json]
                 capri task history [--json]
@@ -179,6 +181,9 @@ public static class HelpText
                 is cancelled but an already-dispatched external action may have occurred.
                 `task reset-stop` allows future tasks only and never revives cancelled tasks.
                 Status/history output is metadata only.
+                `desktop-status` queries read-only stop/active-task metadata from a
+                Windows current-user named pipe owned by the desktop process. It
+                never creates tasks, approves plans or executes actions.
                 """,
             "tasks" => """
                 capri tasks [--json]

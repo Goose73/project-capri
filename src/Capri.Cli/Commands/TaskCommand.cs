@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Capri.Cli.Services;
 using Capri.Core.Autonomy;
+using Capri.Security.Autonomy;
 
 namespace Capri.Cli.Commands;
 
@@ -34,6 +35,7 @@ public sealed class TaskCommand
         {
             "status" => await StatusAsync(invocation, cancellationToken).ConfigureAwait(false),
             "watch" => await WatchAsync(invocation, cancellationToken).ConfigureAwait(false),
+            "desktop-status" => await DesktopStatusAsync(invocation.Json, cancellationToken).ConfigureAwait(false),
             "stop" => Stop(invocation.Json),
             "reset-stop" => ResetStop(invocation.Json),
             "history" => await HistoryAsync(invocation.Json, cancellationToken).ConfigureAwait(false),
@@ -203,6 +205,38 @@ public sealed class TaskCommand
         if (invocation.Arguments.Count != 2 || !Guid.TryParse(invocation.Arguments[1], out var id))
             return Usage("Usage: capri task watch <id> [--json]");
         return await TaskWatch.ObserveAsync(id, _services, _console, invocation.Json, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<int> DesktopStatusAsync(bool json, CancellationToken cancellationToken)
+    {
+        var status = await TaskStatusPipe.QueryAsync(cancellationToken).ConfigureAwait(false);
+        if (status is null)
+            return WriteJsonOrError(json, false, "No Capri desktop status listener is reachable for the current Windows user.", CliExitCodes.Error);
+
+        if (json)
+        {
+            _console.WriteLine(JsonOutput.Serialize(new
+            {
+                ok = true,
+                connected = true,
+                status.Version,
+                status.CheckedUtc,
+                status.Stopped,
+                status.StopGeneration,
+                status.ActiveTaskId,
+                status.ActiveProcessId,
+            }));
+        }
+        else
+        {
+            _console.WriteLine("Capri desktop: connected (read-only per-user status IPC).");
+            _console.WriteLine($"Emergency stop: {(status.Stopped ? "latched" : "clear")} (generation {status.StopGeneration}).");
+            _console.WriteLine(status.ActiveTaskId.HasValue
+                ? $"Active task: {status.ActiveTaskId} (PID {status.ActiveProcessId})"
+                : "Active task: none");
+            _console.WriteLine("This command never executes actions or grants approval.");
+        }
+        return CliExitCodes.Success;
     }
 
     private async Task<int> HistoryAsync(bool json, CancellationToken cancellationToken)

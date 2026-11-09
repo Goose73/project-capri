@@ -1,5 +1,11 @@
 # Development progress
 
+## 2026-11-09 — M5 current-user desktop status IPC (second increment)
+
+Added a Windows-only current-user named-pipe transport in `Capri.Security` with an explicit one-byte read-only status opcode, bounded 2 KiB length-prefixed JSON response, 3-second request deadline and 750 ms CLI connect timeout. Pipe name contains the Windows SID, uses `PipeOptions.CurrentUserOnly`, and the WPF host exposes it via an optional background service. `capri task desktop-status [--json]` reports active task identity and emergency-stop metadata; no prompts, plans, note text, secrets, arbitrary commands or task approvals cross the pipe. Unknown opcodes close without a response. The desktop remains usable if the status listener fails.
+
+Added protocol/CLI parsing tests including user-scoped pipe status round trip, rejected opcode, unavailable listener and no-mutation calls. This is a **read-only diagnostics foundation**, not a unified authoritative task queue, permission workflow, authenticated approval delegation, or M5 completion. A malicious process running under the same Windows account is outside the intended threat boundary. CI can verify Windows builds/tests; actual user's desktop/CLI integration and M4 supervised approval remain for manual acceptance. Raspberry Pi integration remains removed.
+
 ## 2026-11-09 — M5 read-only shared task observation (source work)
 
 Added `capri task watch <id> [--json]` to the Windows CLI. It observes phase/step, PID ownership, emergency-stop state and dispatch-versus-verification flags from the existing metadata-only task history and file coordination; JSON output is newline-delimited and only emitted when the snapshot changes. It does not call Ollama, request approval, execute steps, persist plans, or open an IPC/network listener. Watch stops after a terminal task phase when ownership is released; Ctrl+C cancels the observation without changing the underlying task. Added parser, missing-task, completed-task and cancellation tests.

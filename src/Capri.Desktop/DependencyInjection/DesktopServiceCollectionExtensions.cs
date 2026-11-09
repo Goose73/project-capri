@@ -8,6 +8,7 @@ using Capri.Desktop.ViewModels;
 using Capri.Desktop.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Capri.Desktop.DependencyInjection;
 
@@ -55,6 +56,8 @@ public static class DesktopServiceCollectionExtensions
         services.TryAddSingleton<ITaskJournal>(sp => new TaskMetadataJournal(
             sp.GetRequiredService<ICapriPaths>(),
             sp.GetService<ITaskHistoryStore>()));
+        // Read-only desktop status IPC; never handles task creation, approval or execution.
+        services.AddHostedService<DesktopTaskStatusPipeService>();
         services.TryAddSingleton<TaskCoordinator>(sp => new TaskCoordinator(
             sp.GetRequiredService<Capri.Core.Abstractions.IChatProvider>(),
             sp.GetRequiredService<Capri.Core.Abstractions.IModelRouter>(),
