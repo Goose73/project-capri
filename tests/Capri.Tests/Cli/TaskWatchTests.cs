@@ -64,6 +64,7 @@ public sealed class TaskWatchTests
         });
 
         Assert.Equal(CliExitCodes.Success, code);
+        Assert.Single(console.Out.TrimEnd('\r', '\n').Split('\n'));
         using var document = System.Text.Json.JsonDocument.Parse(console.Out);
         var root = document.RootElement;
         Assert.Equal(id.ToString(), root.GetProperty("taskId").GetString());
