@@ -56,6 +56,10 @@ public static class DesktopServiceCollectionExtensions
         services.TryAddSingleton<ITaskJournal>(sp => new TaskMetadataJournal(
             sp.GetRequiredService<ICapriPaths>(),
             sp.GetService<ITaskHistoryStore>()));
+        services.TryAddSingleton<ITaskAuthorityUiBridge, WpfTaskAuthorityUiBridge>();
+        services.AddSingleton<DesktopTaskAuthorityService>();
+        services.AddHostedService(sp => sp.GetRequiredService<DesktopTaskAuthorityService>());
+        services.TryAddSingleton<ITaskRunner>(sp => sp.GetRequiredService<DesktopTaskAuthorityService>());
         // Read-only desktop status IPC; never handles task creation, approval or execution.
         services.AddHostedService<DesktopTaskStatusPipeService>();
         services.TryAddSingleton<TaskCoordinator>(sp => new TaskCoordinator(

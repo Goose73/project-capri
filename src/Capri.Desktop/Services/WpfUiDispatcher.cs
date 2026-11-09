@@ -41,4 +41,14 @@ public sealed class WpfUiDispatcher : IUiDispatcher
 
         await dispatcher.InvokeAsync(action, DispatcherPriority.Normal, cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async Task<T> InvokeAsync<T>(Func<T> func, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(func);
+        var dispatcher = CurrentDispatcher;
+        if (dispatcher.CheckAccess())
+            return func();
+        return await dispatcher.InvokeAsync(func, DispatcherPriority.Normal, cancellationToken);
+    }
 }

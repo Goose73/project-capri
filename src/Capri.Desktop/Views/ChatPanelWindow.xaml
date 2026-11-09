@@ -125,10 +125,12 @@
                     BorderBrush="#334A4060" BorderThickness="1">
                 <StackPanel>
                     <TextBlock Text="{Binding ModelStatus}" FontSize="11" Foreground="{StaticResource EyeBlue}" TextWrapping="Wrap"/>
-                    <TextBlock Text="{Binding StatusText}" FontSize="11" Foreground="{StaticResource TextDim}" Margin="0,2,0,0" TextWrapping="Wrap"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="STOP task" Style="{StaticResource DarkButton}" ToolTip="Latch emergency task stop" Command="{Binding EmergencyStopCommand}"/>
-                        <Button Content="Reset stop" Style="{StaticResource DarkButton}" Margin="5,0,0,0" ToolTip="Explicitly reset task stop" Command="{Binding ResetTaskStopCommand}"/>
+                    <TextBlock Text="{Binding AuthorityStatus}" FontSize="10" Foreground="{StaticResource TextDim}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding ActiveTaskStatus}" FontSize="10" Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding StatusText}" FontSize="11" Foreground="{StaticResource TextDim}" Margin="0,1,0,0" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,2,0,0">
+                        <Button Content="STOP task" Style="{StaticResource DarkButton}" ToolTip="Latch emergency task stop via shared authority when available" Command="{Binding EmergencyStopCommand}"/>
+                        <Button Content="Reset stop" Style="{StaticResource DarkButton}" Margin="5,0,0,0" ToolTip="Explicitly reset task stop for future tasks" Command="{Binding ResetTaskStopCommand}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
