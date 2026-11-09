@@ -356,8 +356,11 @@ public sealed class NamedPipeTaskAuthorityServer : IAsyncDisposable
             if (req.TaskId is not null && _activeTaskId != req.TaskId) return Fail(req, "Task is not active.");
             cts = _activeTaskCts;
             _pendingApprovalTcs?.TrySetResult(null);
+            _pendingApprovalTcs = null;
+            _pendingApproval = null;
         }
         try { cts?.Cancel(); } catch { }
+        BroadcastState();
         return Ok(req, GetStateSnapshot());
     }
 
@@ -410,9 +413,18 @@ public sealed class NamedPipeTaskAuthorityServer : IAsyncDisposable
         }
         Broadcast(new AuthorityEvent(AuthorityEventKind.ApprovalRequired, GetStateSnapshot(), BuildTaskSnapshot(), Approval: approval));
 
-        using var reg = cancellationToken.Register(() => tcs.TrySetResult(null));
-        var decision = await tcs.Task.ConfigureAwait(false);
-        // Decision is already consumed once; no replay.
+        ApprovalDecision? decision;
+        using (cancellationToken.Register(() => tcs.TrySetResult(null)))
+            decision = await tcs.Task.ConfigureAwait(false);
+        // Decision consumed once; clear pending state to prevent stale/replay acceptance.
+        lock (_stateSync)
+        {
+            if (_pendingApproval?.ApprovalId == approval.ApprovalId)
+            {
+                _pendingApproval = null;
+                _pendingApprovalTcs = null;
+            }
+        }
         if (decision is null || !decision.Approved) return null;
         if (decision.ApprovalId != approval.ApprovalId || !string.Equals(decision.PlanHash, approval.PlanHash, StringComparison.Ordinal)) return null;
         return decision.Workspace ?? string.Empty; // non-null = approved; coordinator requires workspace only for note plans
