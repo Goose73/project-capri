@@ -4,6 +4,10 @@
 
 > **Unofficial fan-inspired project.** Not affiliated with or endorsed by CD PROJEKT RED or Netflix.
 
+## Optional Raspberry Pi Hub (experimental)
+
+The independent `src/Capri.Hub` project adds a Linux ARM64 status monitor and an explicitly confirmed, local-only Wake-on-LAN command. It starts **no inbound API server**, does not run local AI models, and does not change Home Assistant, Tailscale, Docker or existing Pi services. A separate Linux workflow tests it and produces an ARM64 artifact. This is source and CI work only; **deployment and real Raspberry Pi acceptance are pending**. See [Pi Hub guide](docs/PI-HUB.md).
+
 ## Current development status
 
 **Active development (local uncommitted changes; publication prep in progress).** The desktop companion, image-backed sprite renderer, chat/settings foundations, multi-provider catalog integration (M1-M6), an **experimental WPF `/task` autonomy slice**, and **CLI Milestone 1 + M3 Ollama model management/terminal inference + M4 terminal autonomy (implemented, partially verified)** are implemented in the local workspace.
