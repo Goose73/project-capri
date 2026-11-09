@@ -50,6 +50,9 @@ public enum CliCommandKind
     /// <summary>List recent task metadata.</summary>
     Tasks,
 
+    /// <summary>Internal per-user task authority host (M5).</summary>
+    Authority,
+
     /// <summary>The command was not recognized.</summary>
     Unknown,
 }
@@ -180,6 +183,9 @@ public static class CliParser
 
             case "tasks":
                 return ParseTasks(args);
+
+            case "authority":
+                return ParseAuthority(args);
 
             default:
                 return UsageError(
@@ -554,6 +560,13 @@ public static class CliParser
     private static CliInvocation ParseTasks(IReadOnlyList<string> args)
     {
         return ParseFlagOnly(args, CliCommandKind.Tasks, allowJson: true, allowRepair: false);
+    }
+
+    private static CliInvocation ParseAuthority(IReadOnlyList<string> args)
+    {
+        var sub = args.Count > 1 ? args[1].Trim().ToLowerInvariant() : string.Empty;
+        if (sub == "serve") return new CliInvocation { Kind = CliCommandKind.Authority, Arguments = ["serve"] };
+        return new CliInvocation { Kind = CliCommandKind.Unknown, Arguments = [.. args.Skip(1)], Error = "Usage: capri authority serve" };
     }
 
     private static CliInvocation ParseProviders(IReadOnlyList<string> args)

@@ -1,5 +1,15 @@
 # Development progress
 
+## 2026-11-09 — M5 shared task-authority foundation (CLI + secure IPC, feature branch)
+
+**Branch:** `feat/m5-shared-task-authority` (from verified `2840f7c`). Local Release build succeeded; **608 tests passed, 0 failed, 0 skipped** (`dotnet test Capri.sln -c Release --no-build`). Reconciled with preserved local M5 work (`backup/local-m5-authority-foundation-20261109`, `stash@{0}` kept).
+
+**Implemented (verified in automated tests):** per-user Windows named-pipe task authority (`NamedPipeServerStreamAcl`, current-user SID pipe name, no network endpoint) with length-prefixed JSON envelopes and bounded frames. Authority hosts the existing `TaskCoordinator`/executor/journal/control stack (no independent autonomy engine). Supports submit/state/list/task/cancel/stop/reset + progress/approval events. **Human approval is explicit and bound to the exact plan** (`taskId + approvalId + SHA-256 canonical plan hash`); wrong plan hash rejected, stale approvals rejected after cancellation/terminal state, replay attempts rejected after resolution, concurrent second submit rejected while a task is active, emergency stop cancels active work through the authority. Executor is never invoked without explicit exact-plan approval (covered by tests). CLI (`allowLocalFallback:false` in production app wiring) can route task submission/control through the authority when reachable and provides `capri authority serve` (internal host). Read-only `watch` (#9) and `desktop-status` (#10) remain integrated.
+
+**Automated coverage added:** 8 `TaskAuthorityIpcTests` including in-process and genuine subprocess `Capri.AuthorityProbe` cases (submit/approve/complete, plan-hash mismatch, replay, stale approval, concurrent submit, emergency stop, no execution without explicit exact-plan approval).
+
+**Not complete (M5 remains incomplete):** WPF desktop GUI is **not yet integrated** as a full approval-capable authority client (desktop still exposes read-only status IPC; GUI cannot yet display/approve CLI-submitted exact plans through the shared authority). Shared GUI/CLI authenticated approval UI flow, end-to-end GUI/CLI acceptance, and supervised M4 live acceptance are pending. Raspberry Pi Hub remains removed.
+
 ## 2026-11-09 — M5 current-user desktop status IPC (second increment)
 
 Added a Windows-only current-user named-pipe transport in `Capri.Security` with an explicit one-byte read-only status opcode, bounded 2 KiB length-prefixed JSON response, 3-second request deadline and 750 ms CLI connect timeout. Pipe name contains the Windows SID, uses `PipeOptions.CurrentUserOnly`, and the WPF host exposes it via an optional background service. `capri task desktop-status [--json]` reports active task identity and emergency-stop metadata; no prompts, plans, note text, secrets, arbitrary commands or task approvals cross the pipe. Unknown opcodes close without a response. The desktop remains usable if the status listener fails.

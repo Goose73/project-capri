@@ -60,6 +60,9 @@ public sealed class CliServices : ICliServices
     /// <inheritdoc />
     public ITaskJournal? TaskJournal => _provider.GetService<ITaskJournal>();
 
+    /// <inheritdoc />
+    public Capri.Core.Autonomy.Authority.ITaskAuthorityClient? TaskAuthority => null; // production uses on-demand authority connection via TaskCommand/helper
+
     /// <summary>
     /// Builds the default service graph. No host is started and no network
     /// client is created until a command actually needs one.

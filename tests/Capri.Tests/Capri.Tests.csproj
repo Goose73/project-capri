@@ -34,6 +34,7 @@
     <ProjectReference Include="..\..\src\Capri.Desktop\Capri.Desktop.csproj" />
     <ProjectReference Include="..\..\src\Capri.Cli\Capri.Cli.csproj" />
     <ProjectReference Include="..\..\tools\Capri.CoordinationProbe\Capri.CoordinationProbe.csproj" />
+    <ProjectReference Include="..\..\tools\Capri.AuthorityProbe\Capri.AuthorityProbe.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -45,8 +46,10 @@
   <Target Name="CopyCoordinationProbe" AfterTargets="Build">
     <ItemGroup>
       <CoordinationProbeFile Include="$(MSBuildProjectDirectory)\..\..\tools\Capri.CoordinationProbe\bin\$(Configuration)\$(TargetFramework)\*" />
+      <AuthorityProbeFile Include="$(MSBuildProjectDirectory)\..\..\tools\Capri.AuthorityProbe\bin\$(Configuration)\$(TargetFramework)\*" />
     </ItemGroup>
     <Copy SourceFiles="@(CoordinationProbeFile)" DestinationFolder="$(TargetDir)CoordinationProbe" />
+    <Copy SourceFiles="@(AuthorityProbeFile)" DestinationFolder="$(TargetDir)AuthorityProbe" />
   </Target>
 
 </Project>

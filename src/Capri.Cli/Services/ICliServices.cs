@@ -34,4 +34,5 @@ public interface ICliServices : IDisposable
     ITaskHistoryStore? TaskHistory => null;
     ITaskExecutor? TaskExecutor => null;
     ITaskJournal? TaskJournal => null;
+    Capri.Core.Autonomy.Authority.ITaskAuthorityClient? TaskAuthority => null;
 }
