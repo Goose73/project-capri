@@ -206,9 +206,12 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
         catch (OperationCanceledException) { decision = null; }
         catch { decision = null; }
 
+        // A dismissed/cancelled prompt is not a fresh user decision. In particular,
+        // never forward a decision from an old authority connection to a new one.
+        if (decision is null || serviceCt.IsCancellationRequested) return;
         var client = Volatile.Read(ref _client);
         if (client is null) return;
-        var approved = decision?.Approved == true;
+        var approved = decision.Approved;
         var req = new AuthorityRequest(Guid.NewGuid().ToString("N"),
             approved ? AuthorityRequestKind.Approve : AuthorityRequestKind.Deny,
             TaskId: approval.TaskId,
