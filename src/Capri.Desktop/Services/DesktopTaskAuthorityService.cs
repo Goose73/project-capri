@@ -196,6 +196,8 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
 
     private async Task HandleApprovalAsync(ApprovalRequestSnapshot approval, CancellationToken serviceCt)
     {
+        var originatingClient = Volatile.Read(ref _client);
+        if (originatingClient is null) return;
         AuthorityApprovalDecision? decision;
         try
         {
@@ -210,7 +212,7 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
         // never forward a decision from an old authority connection to a new one.
         if (decision is null || serviceCt.IsCancellationRequested) return;
         var client = Volatile.Read(ref _client);
-        if (client is null) return;
+        if (!ReferenceEquals(client, originatingClient)) return;
         var approved = decision.Approved;
         var req = new AuthorityRequest(Guid.NewGuid().ToString("N"),
             approved ? AuthorityRequestKind.Approve : AuthorityRequestKind.Deny,
