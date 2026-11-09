@@ -1,5 +1,9 @@
 # Development progress
 
+## 2026-11-09 — Task-watch test analyzer cleanup (CI verification pending)
+
+Changed the CLI task-watch parser assertion to use `Assert.Collection` instead of allocating an expected array. This retains ordered argument and count checks while addressing the reported CA1861 analyzer warning in the Windows Release test build. This is test-only maintenance; it does not change task authority, approvals, IPC, or execution behavior. GitHub Actions verification is required before merging; no M4 supervised acceptance is implied.
+
 ## 2026-11-09 — M5 current-user desktop status IPC (second increment)
 
 Added a Windows-only current-user named-pipe transport in `Capri.Security` with an explicit one-byte read-only status opcode, bounded 2 KiB length-prefixed JSON response, 3-second request deadline and 750 ms CLI connect timeout. Pipe name contains the Windows SID, uses `PipeOptions.CurrentUserOnly`, and the WPF host exposes it via an optional background service. `capri task desktop-status [--json]` reports active task identity and emergency-stop metadata; no prompts, plans, note text, secrets, arbitrary commands or task approvals cross the pipe. Unknown opcodes close without a response. The desktop remains usable if the status listener fails.
