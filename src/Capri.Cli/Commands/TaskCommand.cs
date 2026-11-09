@@ -27,12 +27,13 @@ public sealed class TaskCommand
             return await ListTasksAsync(invocation.Json, cancellationToken).ConfigureAwait(false);
 
         if (invocation.Arguments.Count == 0)
-            return Usage("Usage: capri task \"<request>\" | capri task status <id>|stop|reset-stop|history [--json]");
+            return Usage("Usage: capri task \"<request>\" | capri task status|watch <id> [--json] | stop|reset-stop|history [--json]");
 
         var sub = invocation.Arguments[0].ToLowerInvariant();
         return sub switch
         {
             "status" => await StatusAsync(invocation, cancellationToken).ConfigureAwait(false),
+            "watch" => await WatchAsync(invocation, cancellationToken).ConfigureAwait(false),
             "stop" => Stop(invocation.Json),
             "reset-stop" => ResetStop(invocation.Json),
             "history" => await HistoryAsync(invocation.Json, cancellationToken).ConfigureAwait(false),
@@ -197,6 +198,13 @@ public sealed class TaskCommand
         return CliExitCodes.Success;
     }
 
+    private async Task<int> WatchAsync(CliInvocation invocation, CancellationToken cancellationToken)
+    {
+        if (invocation.Arguments.Count != 2 || !Guid.TryParse(invocation.Arguments[1], out var id))
+            return Usage("Usage: capri task watch <id> [--json]");
+        return await TaskWatch.ObserveAsync(id, _services, _console, invocation.Json, cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task<int> HistoryAsync(bool json, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -245,7 +253,7 @@ public sealed class TaskCommand
         return CliExitCodes.Success;
     }
 
-    private static object SafeTaskDto(TaskHistoryEntry e) => new
+    internal static object SafeTaskDto(TaskHistoryEntry e) => new
     {
         taskId = e.TaskId,
         createdUtc = e.CreatedUtc,
