@@ -1,5 +1,12 @@
 # Development progress
 
+## 2026-11-09 — M5 merge and WPF CI status (documentation reconciliation)
+
+PR #13 merged the shared task-authority foundation into `master` at `656e7791dccef79c9f4478d300a531c213874da0`; PR #14 subsequently merged a task-status pipe test-readiness fix, bringing `master` to `551b5fb846588ee087bc9d04700dc49d65d7bbef`. The 608-test Release result below is historical evidence for PR #13, **not** a fresh test run for this documentation update.
+
+WPF approval-capable authority integration is proposed in open PR #15 (`147efc94f71cc687ecd6023d922cece4247d655e`), with 613 tests reported locally by its author. Its GitHub Windows CI run `42672854590` concluded **failure** with zero jobs returned by the jobs endpoint; the cause is unconfirmed, so PR #15 is not verified or safe to merge. Open PR #12 separately addresses a task-watch analyzer warning. M4 live supervised acceptance remains pending; no desktop actions or user approvals were performed for this reconciliation.
+
+
 ## 2026-11-09 — M5 shared task-authority foundation (CLI + secure IPC, feature branch)
 
 **Branch:** `feat/m5-shared-task-authority` (from verified `2840f7c`). Local Release build succeeded; **608 tests passed, 0 failed, 0 skipped** (`dotnet test Capri.sln -c Release --no-build`). Reconciled with preserved local M5 work (`backup/local-m5-authority-foundation-20261109`, `stash@{0}` kept).
