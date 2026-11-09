@@ -1,5 +1,11 @@
 # Development progress
 
+## 2026-11-09 — M5 read-only shared task observation (source work)
+
+Added `capri task watch <id> [--json]` to the Windows CLI. It observes phase/step, PID ownership, emergency-stop state and dispatch-versus-verification flags from the existing metadata-only task history and file coordination; JSON output is newline-delimited and only emitted when the snapshot changes. It does not call Ollama, request approval, execute steps, persist plans, or open an IPC/network listener. Watch stops after a terminal task phase when ownership is released; Ctrl+C cancels the observation without changing the underlying task. Added parser, missing-task, completed-task and cancellation tests.
+
+**Scope:** This increment improves cross-process visibility only. It does **not** implement M5's unified GUI/CLI task authority or shared approvals, and it does not prove a real desktop/terminal task acceptance. M4 supervised Ollama approval, Notepad execution and real GUI integration remain pending. Keep the separate Pi Hub removed per the preceding scope decision.
+
 ## 2026-11-09 — Raspberry Pi Hub removed (scope decision)
 
 **Removed as unnecessary for the current project.** The optional Pi Hub introduced in PR #7 / commit `d2d165b` was not required: remote Wake-on-LAN and Tailscale were already working outside Capri, and the added Linux/ARM64 monitoring component would duplicate existing infrastructure. This is a user-requested removal, not a security incident or failed live deployment.
