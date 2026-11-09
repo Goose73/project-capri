@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Capri.Cli.Services;
 using Capri.Core.Autonomy;
 
@@ -11,6 +12,10 @@ namespace Capri.Cli.Commands;
 public static class TaskWatch
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(750);
+    private static readonly JsonSerializerOptions SnapshotOptions = new(JsonOutput.Options)
+    {
+        WriteIndented = false,
+    };
 
     public static async Task<int> ObserveAsync(
         Guid id,
@@ -55,7 +60,7 @@ public static class TaskWatch
                 return CliExitCodes.Error;
             }
 
-            var snapshot = JsonOutput.Serialize(new
+            var snapshot = JsonSerializer.Serialize(new
             {
                 taskId = id,
                 active = ownsActive,
@@ -63,7 +68,7 @@ public static class TaskWatch
                 stopped = stop.Stopped,
                 stopGeneration = stop.Generation,
                 metadata = entry is null ? null : TaskCommand.SafeTaskDto(entry),
-            });
+            }, SnapshotOptions);
 
             if (!string.Equals(lastSnapshot, snapshot, StringComparison.Ordinal))
             {
