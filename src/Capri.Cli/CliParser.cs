@@ -476,7 +476,7 @@ public static class CliParser
     {
         if (args.Count == 1)
         {
-            return UsageError("Usage: capri task \"<request>\" | capri task status <id> | capri task stop|reset-stop|history [--json]");
+            return UsageError("Usage: capri task \"<request>\" | capri task status|watch <id> | capri task stop|reset-stop|history [--json]");
         }
 
         var first = args[1].Trim();
@@ -486,7 +486,7 @@ public static class CliParser
         }
 
         var firstLower = first.ToLowerInvariant();
-        if (firstLower is "status" or "stop" or "reset-stop" or "history")
+        if (firstLower is "status" or "watch" or "stop" or "reset-stop" or "history")
         {
             var json = false;
             var positionals = new List<string> { firstLower };
@@ -506,10 +506,10 @@ public static class CliParser
                 positionals.Add(argument);
             }
 
-            if (firstLower == "status")
+            if (firstLower is "status" or "watch")
             {
                 if (positionals.Count != 2)
-                    return UsageError("Usage: capri task status <id> [--json]");
+                    return UsageError($"Usage: capri task {firstLower} <id> [--json]");
             }
             else if (positionals.Count != 1)
             {
