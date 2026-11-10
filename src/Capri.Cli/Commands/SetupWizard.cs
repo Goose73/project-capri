@@ -121,6 +121,9 @@ public sealed class SetupWizard
     private void WriteHeader()
     {
         _console.WriteLine(_repair ? "Capri setup (repair mode)" : "Capri setup wizard");
+        _console.WriteLine("I'll guide you through setup one step at a time. You don't need to know technical terms.");
+        _console.WriteLine("I'll explain each choice, show what's recommended, and ask before downloads or hardware checks.");
+        _console.WriteLine("Nothing will be installed just by opening this wizard.");
         _console.WriteLine("This wizard configures local/shared settings. Secrets are never displayed.");
         _console.WriteLine("Local AI (Ollama) does not require an API key. Cloud consent is never enabled silently.");
         _console.WriteLine("Type 'b' to go back where offered, 's' to skip, or 'c' to cancel.");
@@ -159,7 +162,8 @@ public sealed class SetupWizard
 
     private HardwareStepResult DetectHardwareStep()
     {
-        _console.WriteLine("Step 1/7 - Hardware detection (best-effort, local only)");
+        _console.WriteLine("Step 1/7 - Check what your computer can handle");
+        _console.WriteLine("An AI model is the software that generates answers. Larger models often need more memory.");
         _console.WriteLine("Capri can run read-only Windows commands to inspect CPU, physical RAM, GPU/VRAM and free disk space.");
         _console.WriteLine("Results stay on this PC. No administrator privileges or model downloads are required.");
         _console.WriteLine("If declined, Capri cannot make hardware-based model recommendations.");
@@ -188,7 +192,10 @@ public sealed class SetupWizard
 
     private async Task<LocalProviderState> DetectLocalProvidersAsync(AppSettings settings, CancellationToken cancellationToken)
     {
-        _console.WriteLine("Step 2/7 - Local provider detection");
+        _console.WriteLine("Step 2/7 - Find your local AI service");
+        _console.WriteLine("Ollama runs AI models on your computer, without an OpenAI API key.");
+        _console.WriteLine("I'll check whether it is running and which models are already installed.");
+        _console.WriteLine("These checks do not download or start models.");
         var targets = LocalEndpoints.GetTargets(settings);
         var reachable = new Dictionary<string, EndpointProbeResult>(StringComparer.OrdinalIgnoreCase);
         foreach (var target in targets)
@@ -237,7 +244,9 @@ public sealed class SetupWizard
         LocalProviderState localState,
         CancellationToken cancellationToken)
     {
-        _console.WriteLine("Step 3/7 - Model recommendation");
+        _console.WriteLine("Step 3/7 - Choose an AI model");
+        _console.WriteLine("I'll compare available models with the hardware information you allowed me to inspect.");
+        _console.WriteLine("A 'good fit' is an estimate, not a guarantee; model size and settings affect performance.");
         var candidates = hardware is null
             ? Array.Empty<RecommendedCandidate>()
             : GetRecommendedCandidates(hardware, localState.OllamaModels);
@@ -254,7 +263,17 @@ public sealed class SetupWizard
             _console.WriteLine($"      {c.Reason}");
         }
         _console.WriteLine(string.Empty);
-        _console.WriteLine("Step 4/7 - Choose model");
+        if (localState.OllamaModels.Count == 0)
+        {
+            _console.WriteLine("No installed Ollama models were detected. You can skip this step and return later.");
+        }
+        else
+        {
+            _console.WriteLine($"I found {localState.OllamaModels.Count} installed model(s). Choosing one avoids a new download.");
+        }
+        _console.WriteLine("Step 4/7 - Pick your model");
+        _console.WriteLine("If you're unsure, select an installed model that fits your PC, or type 's' to skip.");
+        _console.WriteLine("Downloading a new model uses disk space and internet bandwidth. I'll ask first.");
         _console.WriteLine("Options: enter number to use/download recommendation, enter installed model name, 's' skip, 'c' cancel.");
 
         while (true)
@@ -368,7 +387,9 @@ public sealed class SetupWizard
 
     private async Task<InferenceTestResult> RunInferenceTestAsync(AppSettings settings, bool persistModelSelection, CancellationToken cancellationToken)
     {
-        _console.WriteLine("Step 5/7 - Genuine inference test");
+        _console.WriteLine("Step 5/7 - Test your AI connection");
+        _console.WriteLine("I'll send a short test question to the selected provider so you can check that replies work.");
+        _console.WriteLine("For cloud providers, the test may send data over the internet; existing cloud consent rules still apply.");
         _console.WriteLine($"  Sending actual request to configured provider/model: {settings.Provider.ProviderId}/{settings.Provider.ChatModel}");
         _console.WriteLine($"  Prompt: \"{ProbePrompt}\"");
 
