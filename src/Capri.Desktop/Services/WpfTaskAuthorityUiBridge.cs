@@ -141,7 +141,7 @@ public sealed class WpfTaskAuthorityUiBridge : ITaskAuthorityUiBridge
             var s = request.Plan.Steps[i];
             sb.AppendLine(CultureInfo.InvariantCulture, $"  {i + 1}. tool={s.Tool} target={s.Target ?? "(none)"}");
             if (!string.IsNullOrWhiteSpace(s.Text))
-                sb.AppendLine(CultureInfo.InvariantCulture, $"     text: \"{Truncate(s.Text, 300)}\"");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"     text: \"{s.Text}\"");
         }
         sb.AppendLine();
         sb.AppendLine("NO actions occur without your explicit approval of this exact plan.");
@@ -184,5 +184,4 @@ public sealed class WpfTaskAuthorityUiBridge : ITaskAuthorityUiBridge
         try { var p = Path.Combine(Path.GetTempPath(), "CapriNotes"); return Directory.Exists(p) ? p : Path.GetTempPath(); } catch { return null; }
     }
 
-    private static string Truncate(string value, int max) => value.Length <= max ? value : value[..max] + "...";
 }

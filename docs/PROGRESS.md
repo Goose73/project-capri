@@ -1,5 +1,10 @@
 # Development progress
 
+## 2026-11-10 — M5 full note-text disclosure in WPF approval (PR pending verification)
+
+Fixed the WPF exact-plan approval preview to display **all** proposed note text instead of truncating it after 300 characters. The old preview could conceal a suffix of a file-writing action even while claiming to show the exact plan. Added a regression test with a note longer than 300 characters and a distinctive final marker. No execution or approval semantics were relaxed; server-side task/approval/hash binding remains authoritative. **Windows CI verification is pending; this is not supervised M4 acceptance.**
+
+
 ## 2026-11-10 — M5 pending-approval lifetime hardening (PR #15, unverified)
 
 The desktop now retains its pending approval cancellation registration until authoritative state revalidation and the final IPC response have completed, rather than clearing it immediately when the approval dialog returns. State changes and emergency stop can therefore invalidate an in-flight approval response. The state query and final decision use the linked approval cancellation token; server-side task/approval/hash validation remains authoritative. Added a Windows desktop integration regression test that holds the UI prompt open, triggers emergency stop, checks prompt cancellation, and rejects late approval dispatch. **These changes are committed but not yet build/test verified; GitHub Actions verification remains outstanding.** No supervised M4 acceptance was simulated and the Raspberry Pi Hub remains removed.

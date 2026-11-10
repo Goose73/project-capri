@@ -40,6 +40,21 @@ public sealed class DesktopAuthorityApprovalTests
     }
 
     [Fact]
+    public void BuildPlanText_DisplaysCompleteNoteContentWithoutTruncation()
+    {
+        var noteText = new string('a', 350) + "END_OF_APPROVAL_NOTE";
+        var plan = new TaskPlan([new TaskStep(TaskTool.CreateNote, "review.txt", noteText)]);
+        var snapshot = new ApprovalRequestSnapshot(Guid.NewGuid(), Guid.NewGuid(), "Review note",
+            "ollama", "local", plan, "plan-hash", DateTimeOffset.UtcNow);
+
+        var display = WpfTaskAuthorityUiBridge.BuildPlanText(snapshot);
+
+        Assert.Contains(noteText, display);
+        Assert.Contains("END_OF_APPROVAL_NOTE", display);
+        Assert.DoesNotContain(new string('a', 300) + "...", display);
+    }
+
+    [Fact]
     public void DescribeRisks_FlagsModifyingActions()
     {
         var plan = new TaskPlan([
