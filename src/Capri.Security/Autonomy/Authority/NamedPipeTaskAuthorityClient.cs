@@ -35,7 +35,7 @@ public sealed class NamedPipeTaskAuthorityClient : ITaskAuthorityClient
 
     public static string CurrentUserPipeName() => TaskAuthorityProtocol.PipeNameForUserIdentifier(WindowsIdentity.GetCurrent().User?.Value ?? "nouser");
 
-    public bool IsConnected => _pipe?.IsConnected == true;
+    public bool IsConnected => _pipe?.IsConnected == true && _reader is { IsCompleted: false };
 
     public async ValueTask EnsureConnectedAsync(CancellationToken cancellationToken = default)
     {
