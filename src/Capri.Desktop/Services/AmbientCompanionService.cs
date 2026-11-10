@@ -1,3 +1,5 @@
+using System.IO;
+using System.Net.Http;
 using Capri.Core.Abstractions;
 using Capri.Core.Companion;
 using Capri.Desktop.Services;
@@ -31,7 +33,6 @@ public sealed partial class AmbientCompanionService : ObservableObject, IDisposa
     private bool _sessionConsented;
     private bool _busy;
     private bool _disposed;
-    private string? _lastComment;
 
     [ObservableProperty] private bool _isObserving;
     [ObservableProperty] private bool _isPaused;
@@ -134,7 +135,7 @@ public sealed partial class AmbientCompanionService : ObservableObject, IDisposa
                 {
                     runCancellation.Dispose();
                 }
-            });
+            }, CancellationToken.None);
         }
         return true;
     }
