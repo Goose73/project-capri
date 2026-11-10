@@ -18,6 +18,47 @@ namespace Capri.Tests.Autonomy;
 public sealed class TaskAuthorityIpcTests
 {
     [Fact]
+    public async Task ClientReconnectsWithFreshEventStreamAfterAuthorityRestart()
+    {
+        var pipeName = "capri-test-reconnect-" + Guid.NewGuid().ToString("N");
+        await using var first = await AuthorityFixture.CreateAsync(
+            """{"steps":[{"tool":"launch_app","target":"notepad"}]}""", pipeName: pipeName);
+        await using var client = first.CreateClient("reconnecting");
+        await client.EnsureConnectedAsync();
+        var oldStream = client.Events();
+
+        var initial = await client.SendAsync(Req(AuthorityRequestKind.GetState));
+        Assert.True(initial.Ok);
+
+        // The old event stream must end when its authority disappears.
+        await first.Server.DisposeAsync();
+        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+        {
+            await foreach (var _ in oldStream.WithCancellation(timeout.Token)) { }
+        }
+
+        await using var restarted = await AuthorityFixture.CreateAsync(
+            """{"steps":[{"tool":"launch_app","target":"notepad"}]}""", pipeName: pipeName);
+        await client.EnsureConnectedAsync();
+        var freshStream = client.Events();
+        Assert.NotSame(oldStream, freshStream);
+        var state = await client.SendAsync(Req(AuthorityRequestKind.GetState));
+        Assert.True(state.Ok);
+
+        // Verify a fresh subscription delivers actual events, not a completed
+        // or stale channel from the previous authority generation.
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var gotSubscribed = false;
+        await foreach (var evt in freshStream.WithCancellation(cts.Token))
+        {
+            if (evt.Kind != AuthorityEventKind.Subscribed) continue;
+            gotSubscribed = true;
+            break;
+        }
+        Assert.True(gotSubscribed);
+    }
+
+    [Fact]
     public async Task InProcessSubmitApproveAndCompleteThroughAuthority()
     {
         await using var fx = await AuthorityFixture.CreateAsync(planJson: """{"steps":[{"tool":"launch_app","target":"notepad"}]}""");
@@ -359,7 +400,7 @@ public sealed class TaskAuthorityIpcTests
         public required NamedPipeTaskAuthorityServer Server { get; init; }
         public required TempDirectory Temp { get; init; }
 
-        public static async Task<AuthorityFixture> CreateAsync(string planJson, ITaskExecutor? executor = null)
+        public static async Task<AuthorityFixture> CreateAsync(string planJson, ITaskExecutor? executor = null, string? pipeName = null)
         {
             var temp = new TempDirectory();
             var paths = new CapriPaths(temp.Path);
@@ -371,7 +412,7 @@ public sealed class TaskAuthorityIpcTests
             var exec = executor ?? Substitute.For<ITaskExecutor>();
             if (executor is null)
                 exec.ExecuteAsync(Arg.Any<TaskStep>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new TaskOutcome(true, false, "dispatched"));
-            var pipeName = "capri-test-" + Guid.NewGuid().ToString("N");
+            pipeName ??= "capri-test-" + Guid.NewGuid().ToString("N");
             var server = new NamedPipeTaskAuthorityServer(pipeName, paths, history, provider, router, exec, journal, control);
             server.Start();
             // give server a moment
