@@ -25,7 +25,6 @@
     <PackageVersion Include="H.NotifyIcon.Wpf" Version="2.4.1" />
     <PackageVersion Include="OpenCvSharp4.Windows" Version="4.13.0.20260627" />
     <PackageVersion Include="System.Speech" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Win32.SystemEvents" Version="10.0.14" />
   </ItemGroup>
 
   <ItemGroup Label="Security">
