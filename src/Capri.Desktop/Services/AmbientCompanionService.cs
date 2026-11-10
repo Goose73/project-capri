@@ -336,7 +336,9 @@ public sealed partial class AmbientCompanionService : ObservableObject, IDisposa
 
     private void SettingsStore_Changed(object? sender, Capri.Core.Models.AppSettingsChangedEventArgs e)
     {
-        if (!e.Current.AmbientVision.Enabled || !e.Current.AmbientVision.LocalOnly)
+        // Any live camera/remark configuration change invalidates the old
+        // session. Never keep using a cached permission or commentary setting.
+        if (!Equals(e.Current.AmbientVision, e.Previous?.AmbientVision))
             Stop();
     }
 
