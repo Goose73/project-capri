@@ -126,7 +126,7 @@ public sealed class SetupWizard
         _console.WriteLine("Nothing will be installed just by opening this wizard.");
         _console.WriteLine("This wizard configures local/shared settings. Secrets are never displayed.");
         _console.WriteLine("Local AI (Ollama) does not require an API key. Cloud consent is never enabled silently.");
-        _console.WriteLine("Type 'b' to go back where offered, 's' to skip, or 'c' to cancel.");
+        _console.WriteLine("Type 's' to skip optional steps or 'c' to cancel. Back navigation is not available in this terminal wizard.");
         _console.WriteLine(string.Empty);
     }
 
@@ -669,7 +669,7 @@ public sealed class SetupWizard
     private static bool IsSkip(string? v) => string.Equals(v?.Trim(), "s", StringComparison.OrdinalIgnoreCase) || string.Equals(v?.Trim(), "skip", StringComparison.OrdinalIgnoreCase) || string.Equals(v?.Trim(), "b", StringComparison.OrdinalIgnoreCase) || string.Equals(v?.Trim(), "back", StringComparison.OrdinalIgnoreCase);
     private static bool IsCancel(string? v) => string.Equals(v?.Trim(), "c", StringComparison.OrdinalIgnoreCase) || string.Equals(v?.Trim(), "cancel", StringComparison.OrdinalIgnoreCase) || string.Equals(v?.Trim(), "q", StringComparison.OrdinalIgnoreCase);
     private static bool IsCancelled(HardwareStepResult _) => false;
-    private int SuccessCancelled() { _console.WriteLine("Setup cancelled. No changes were made."); return CliExitCodes.Success; }
+    private int SuccessCancelled() { _console.WriteLine("Setup cancelled. Any settings saved earlier in this session are not rolled back."); return CliExitCodes.Success; }
 
     private static string ResolveOllamaBaseUrl(AppSettings settings)
     {
@@ -718,7 +718,7 @@ public sealed class SetupWizard
         var fit4b = ModelHardwareFit.ForFourB(hardware.RamGb, hardware.VramGbEstimate);
         var list = new[]
         {
-            new RecommendedCandidate("qwen3.5:4b", "~3.3 GB", fit4b, "Best default for RTX 3050 6GB / 16GB RAM class when installed."),
+            new RecommendedCandidate("qwen3.5:4b", "~3.3 GB", fit4b, "Compact model option when measured RAM/VRAM indicate enough headroom; verify performance."),
             new RecommendedCandidate("qwen3:4b-instruct", "~2.5 GB", fit4b, "Lighter instruction-tuned alternative."),
             new RecommendedCandidate("phi4-mini", "~2.5 GB (estimate)", fit4b, "Small model option; verify exact tag."),
             new RecommendedCandidate("gemma3:4b", "~3.3 GB (estimate)", fit4b, "Compact option; verify tag/modality."),
