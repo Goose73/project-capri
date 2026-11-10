@@ -160,6 +160,17 @@ public sealed class SetupWizard
     private HardwareStepResult DetectHardwareStep()
     {
         _console.WriteLine("Step 1/7 - Hardware detection (best-effort, local only)");
+        _console.WriteLine("Capri can run read-only Windows commands to inspect CPU, physical RAM, GPU/VRAM and free disk space.");
+        _console.WriteLine("Results stay on this PC. No administrator privileges or model downloads are required.");
+        _console.WriteLine("If declined, Capri cannot make hardware-based model recommendations.");
+        _console.WriteLine("Oversized models can cause severe slowdown, memory exhaustion, app crashes, or system instability.");
+        _console.Write("Allow local hardware inspection? [y/N]: ");
+        if (!IsYes(ReadInput()))
+        {
+            _console.WriteLine("Inspection declined. No hardware-based model recommendations will be shown.");
+            _console.WriteLine(string.Empty);
+            return new HardwareStepResult(null);
+        }
         var info = HardwareInfo.Detect();
         _console.WriteLine($"  Windows platform: {Environment.OSVersion.VersionString}");
         _console.WriteLine($"  CPU logical cores: {info.LogicalCores?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}");
@@ -222,12 +233,19 @@ public sealed class SetupWizard
 
     private async Task<ModelConfigResult> ConfigureModelAsync(
         AppSettings settings,
-        HardwareInfo hardware,
+        HardwareInfo? hardware,
         LocalProviderState localState,
         CancellationToken cancellationToken)
     {
         _console.WriteLine("Step 3/7 - Model recommendation");
-        var candidates = GetRecommendedCandidates(hardware, localState.OllamaModels);
+        var candidates = hardware is null
+            ? Array.Empty<RecommendedCandidate>()
+            : GetRecommendedCandidates(hardware, localState.OllamaModels);
+        if (hardware is null)
+        {
+            _console.WriteLine("Recommendations disabled: hardware inspection was not authorized.");
+            _console.WriteLine("Oversized models may exhaust memory and cause slowdowns or crashes.");
+        }
         for (var i = 0; i < candidates.Length; i++)
         {
             var c = candidates[i];
@@ -272,6 +290,11 @@ public sealed class SetupWizard
             }
 
             var isInstalled = localState.OllamaModels.Any(m => IsModelMatch(m.Name, selected));
+            if (hardware is null && !isInstalled)
+            {
+                _console.WriteLine("Downloads are unavailable in setup without hardware inspection. Run setup again to opt in.");
+                continue;
+            }
 
             if (!isInstalled)
             {
@@ -671,15 +694,13 @@ public sealed class SetupWizard
     private static RecommendedCandidate[] GetRecommendedCandidates(HardwareInfo hardware, IReadOnlyList<OllamaModelInfo> installed)
     {
         var installedNames = new HashSet<string>(installed.Select(m => m.Name), StringComparer.OrdinalIgnoreCase);
-        var has6GbVramClass = hardware.VramGbEstimate >= 5.5 || (hardware.GpuName?.Contains("3050", StringComparison.OrdinalIgnoreCase) == true);
-        var has16GbRam = hardware.RamGb >= 14;
-        var fit4b = has6GbVramClass && has16GbRam ? "good fit (4B Q4 class; 6GB VRAM / 16GB RAM target)" : "possible with tuning; verify VRAM/RAM";
+        var fit4b = ModelHardwareFit.ForFourB(hardware.RamGb, hardware.VramGbEstimate);
         var list = new[]
         {
             new RecommendedCandidate("qwen3.5:4b", "~3.3 GB", fit4b, "Best default for RTX 3050 6GB / 16GB RAM class when installed."),
             new RecommendedCandidate("qwen3:4b-instruct", "~2.5 GB", fit4b, "Lighter instruction-tuned alternative."),
-            new RecommendedCandidate("phi4-mini", "~2.5 GB (estimate)", "good on 6GB VRAM-class GPUs", "Small model option; verify exact tag."),
-            new RecommendedCandidate("gemma3:4b", "~3.3 GB (estimate)", "good on 6GB VRAM-class GPUs", "Compact option; verify tag/modality."),
+            new RecommendedCandidate("phi4-mini", "~2.5 GB (estimate)", fit4b, "Small model option; verify exact tag."),
+            new RecommendedCandidate("gemma3:4b", "~3.3 GB (estimate)", fit4b, "Compact option; verify tag/modality."),
             new RecommendedCandidate("qwen3.5:2b", "~1.5-2 GB (estimate)", "best fallback for tighter VRAM/RAM", "Fallback for smaller machines."),
         };
         return list.Select(c => c with { Installed = installedNames.Contains(c.Name) }).ToArray();
@@ -741,7 +762,7 @@ public sealed class SetupWizard
 
     private enum ResumeAction { Reconfigure, DiagnosticsOnly, Cancel }
     private enum DownloadOutcome { Downloaded, Skipped, Cancelled }
-    private sealed record HardwareStepResult(HardwareInfo Info);
+    private sealed record HardwareStepResult(HardwareInfo? Info);
     private sealed record LocalProviderState(IReadOnlyDictionary<string, EndpointProbeResult> Reachability, IReadOnlyList<OllamaModelInfo> OllamaModels, string? OllamaNote);
     private sealed record RecommendedCandidate(string Name, string ApproxDownloadSize, string Fit, string Reason) { public bool Installed { get; init; } }
     private sealed record ModelConfigResult(AppSettings Settings, bool Cancelled) { public static ModelConfigResult CancelledResult(AppSettings s) => new(s, true); }
