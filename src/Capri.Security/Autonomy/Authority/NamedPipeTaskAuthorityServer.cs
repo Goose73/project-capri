@@ -66,6 +66,7 @@ public sealed class NamedPipeTaskAuthorityServer : IAsyncDisposable
     private readonly string _pipeName;
     private readonly ICapriPaths _paths;
     private readonly ITaskHistoryStore _history;
+    private readonly ITaskControl? _control;
     private readonly Func<ITaskApproval, ITaskJournal, TaskCoordinator> _coordinatorFactory;
     private readonly ConcurrentDictionary<string, ClientConnection> _clients = new();
     private readonly CancellationTokenSource _cts = new();
@@ -105,6 +106,15 @@ public sealed class NamedPipeTaskAuthorityServer : IAsyncDisposable
         _pipeName = pipeName ?? throw new ArgumentNullException(nameof(pipeName));
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));
         _history = history ?? throw new ArgumentNullException(nameof(history));
+        _control = control;
+        // Restore the durable stop latch and generation before accepting any IPC.
+        // A corrupt/unreadable control file must fail startup, never default to running.
+        if (_control is not null)
+        {
+            var persisted = _control.GetStopState();
+            _stopped = persisted.Stopped;
+            _stopGeneration = persisted.Generation;
+        }
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentNullException.ThrowIfNull(router);
         ArgumentNullException.ThrowIfNull(executor);
@@ -227,9 +237,42 @@ public sealed class NamedPipeTaskAuthorityServer : IAsyncDisposable
                 case AuthorityRequestKind.CancelTask:
                     return CancelActiveTask(req);
                 case AuthorityRequestKind.Stop:
-                    _coordinator?.Stop(); lock (_stateSync) { _stopped = true; _stopGeneration++; } BroadcastState(); return Ok(req, GetStateSnapshot());
+                    lock (_stateSync)
+                    {
+                        // The coordinator persists stop through ITaskControl. Do not
+                        // acknowledge a stop unless the durable latch was written.
+                        _coordinator?.Stop();
+                        if (_control is not null)
+                        {
+                            var persisted = _control.GetStopState();
+                            _stopped = persisted.Stopped;
+                            _stopGeneration = persisted.Generation;
+                            if (!_stopped) return Fail(req, "Stop was not persisted.");
+                        }
+                        else { _stopped = true; _stopGeneration++; }
+                        _pendingApprovalTcs?.TrySetResult(null);
+                        _pendingApprovalTcs = null;
+                        _pendingApproval = null;
+                        // Coordinator.Stop cancels the active run; avoid invoking
+                        // cancellation callbacks while holding the authority lock.
+                    }
+                    BroadcastState();
+                    return Ok(req, GetStateSnapshot());
                 case AuthorityRequestKind.ResetStop:
-                    _coordinator?.ResetStop(); lock (_stateSync) { _stopped = false; } BroadcastState(); return Ok(req, GetStateSnapshot());
+                    lock (_stateSync)
+                    {
+                        _coordinator?.ResetStop();
+                        if (_control is not null)
+                        {
+                            var persisted = _control.GetStopState();
+                            _stopped = persisted.Stopped;
+                            _stopGeneration = persisted.Generation;
+                            if (_stopped) return Fail(req, "Stop reset was not persisted.");
+                        }
+                        else { _stopped = false; }
+                    }
+                    BroadcastState();
+                    return Ok(req, GetStateSnapshot());
                 case AuthorityRequestKind.Ping:
                     return Ok(req, GetStateSnapshot());
                 default:

@@ -1,5 +1,9 @@
 # Development progress
 
+## 2026-11-10 — M5 durable stop latch on authority restart (PR pending)
+
+Fixed the authority's in-memory emergency-stop snapshot starting unlatched after process restart even when the shared file-backed ITaskControl retained a stop. The server now loads the persisted stop latch/generation before listening, reflects persisted state after stop/reset, and invalidates pending approvals and active cancellation on stop. A real named-pipe regression starts an authority, stops it, restarts a fresh authority against the same private task metadata, proves new submissions are rejected until explicit reset, and verifies the stop generation. Existing task execution and exact-plan approval remain gated. Windows CI and M4 supervised acceptance remain separate.
+
 ## 2026-11-10 — M5 named-pipe client reconnect and event stream recovery (PR pending)
 
 Audited shared Windows IPC after exact-approval-ID hardening. Found that the authority client permanently completed its event channel when a server connection closed, but reused the completed channel after reconnect, leaving event consumers unable to observe new approvals or progress. Reconnection now creates a new per-connection event stream, binds reader completion to that generation, and considers a completed reader disconnected even if the pipe has not yet updated its connection flag. Failed Hello/Subscribe handshakes clean up their pipe and reader before retry. Duplicate in-flight request IDs are rejected instead of silently replacing the pending waiter, and request bookkeeping is cleared after write failures. Added a real named-pipe server-restart integration regression. No task submission, approval or replay is automatic on reconnect. M4 supervised user acceptance remains outstanding; CI pending.
