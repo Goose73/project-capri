@@ -45,6 +45,44 @@ public sealed class DesktopTaskAuthorityServiceTests
     }
 
     [Fact]
+    public async Task StateLessEventRetainsLastAuthoritativeSnapshot()
+    {
+        await using var fx = await DesktopAuthorityFixture.CreateAsync("""{"steps":[]}""");
+        var service = fx.CreateService(new FakeUiBridge(_ => null));
+        var state = new AuthorityStateSnapshot(true, 8, null, null, DateTimeOffset.UtcNow);
+
+        service.ApplyEventState(state);
+        service.ApplyEventState(null);
+
+        Assert.Same(state, service.LastState);
+        Assert.True(((ITaskRunner)service).IsStopped);
+    }
+
+    [Fact]
+    public void WatcherIgnoresMissingAndForeignTaskIdentity()
+    {
+        var requestedId = Guid.NewGuid();
+        var otherId = Guid.NewGuid();
+        var emptyState = new AuthorityStateSnapshot(false, 0, null, null, DateTimeOffset.UtcNow);
+        var foreignTask = new TaskSnapshot(otherId, "unrelated", "Completed", 1, 1,
+            null, null, "finished", null, null, false, DateTimeOffset.UtcNow);
+        var matchingTask = foreignTask with { TaskId = requestedId };
+
+        Assert.False(DesktopTaskAuthorityService.IsCompletionForTask(
+            new AuthorityEvent(AuthorityEventKind.TaskCompleted, emptyState), requestedId));
+        Assert.False(DesktopTaskAuthorityService.IsCompletionForTask(
+            new AuthorityEvent(AuthorityEventKind.TaskCompleted, emptyState, foreignTask), requestedId));
+        Assert.True(DesktopTaskAuthorityService.IsCompletionForTask(
+            new AuthorityEvent(AuthorityEventKind.TaskCompleted, emptyState, matchingTask), requestedId));
+        Assert.False(DesktopTaskAuthorityService.IsProgressForTask(
+            new TaskProgress(TaskPhase.Planning, "missing task id"), requestedId));
+        Assert.False(DesktopTaskAuthorityService.IsProgressForTask(
+            new TaskProgress(TaskPhase.Planning, "another task", otherId), requestedId));
+        Assert.True(DesktopTaskAuthorityService.IsProgressForTask(
+            new TaskProgress(TaskPhase.Planning, "my task", requestedId), requestedId));
+    }
+
+    [Fact]
     public async Task HostingDesktopService_UiDenialFailsTaskWithoutExecution()
     {
         var executor = Substitute.For<ITaskExecutor>();

@@ -105,15 +105,24 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
         }
         await foreach (var evt in watcher.Events(ct).ConfigureAwait(false))
         {
-            if (evt.Progress is { } p && (p.TaskId == taskId || p.TaskId is null))
-                yield return p with { TaskId = taskId };
-            if (evt.Kind == AuthorityEventKind.TaskCompleted && (evt.Task?.TaskId == taskId || evt.State?.ActiveTask is null))
+            // Never associate a missing task id or another task's completion with this request.
+            if (evt.Progress is { } p && IsProgressForTask(p, taskId.Value))
+                yield return p;
+            if (IsCompletionForTask(evt, taskId.Value))
             {
-                if (evt.Task?.TaskId == taskId) yield return new TaskProgress(Enum.TryParse<TaskPhase>(evt.Task.Phase, true, out var tp) ? tp : TaskPhase.Completed, evt.Task.Message ?? "Task finished.", taskId, evt.Task.StepIndex, evt.Task.TotalSteps, evt.Task.ProviderId, evt.Task.ModelId, evt.Task.LastVerified, evt.Task.LastDispatched);
+                var completed = evt.Task!;
+                yield return new TaskProgress(Enum.TryParse<TaskPhase>(completed.Phase, true, out var tp) ? tp : TaskPhase.Completed, completed.Message ?? "Task finished.", taskId, completed.StepIndex, completed.TotalSteps, completed.ProviderId, completed.ModelId, completed.LastVerified, completed.LastDispatched);
                 yield break;
             }
         }
     }
+
+    // Task events and progress events may arrive for a different task or omit identity.
+    // The active watcher must never borrow another task's progress or complete early.
+    internal static bool IsProgressForTask(TaskProgress progress, Guid taskId) => progress.TaskId == taskId;
+
+    internal static bool IsCompletionForTask(AuthorityEvent evt, Guid taskId) =>
+        evt.Kind == AuthorityEventKind.TaskCompleted && evt.Task?.TaskId == taskId;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -187,19 +196,29 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
         if (client is null) return;
         await foreach (var evt in client.Events(ct).ConfigureAwait(false))
         {
-            lock (_sync)
-            {
-                _lastState = evt.State;
-                if (_pendingApprovalCancellation is not null && evt.State is { } state &&
-                    (state.Stopped || state.ActiveTask?.TaskId != _pendingApprovalTaskId))
-                    _pendingApprovalCancellation.Cancel();
-            }
-            StateChanged?.Invoke(this, EventArgs.Empty);
+            ApplyEventState(evt.State);
             if (evt.Kind == AuthorityEventKind.ApprovalRequired && evt.Approval is { } approval)
             {
                 _ = Task.Run(async () => await HandleApprovalAsync(approval, ct).ConfigureAwait(false), CancellationToken.None);
             }
         }
+    }
+
+    // Internal to allow a deterministic protocol regression for state-less events.
+    // A missing snapshot does not mean the server cleared its authoritative state.
+    internal void ApplyEventState(AuthorityStateSnapshot? snapshot)
+    {
+        lock (_sync)
+        {
+            if (snapshot is { } state)
+            {
+                _lastState = state;
+                if (_pendingApprovalCancellation is not null &&
+                    (state.Stopped || state.ActiveTask?.TaskId != _pendingApprovalTaskId))
+                    _pendingApprovalCancellation.Cancel();
+            }
+        }
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private async Task HandleApprovalAsync(ApprovalRequestSnapshot approval, CancellationToken serviceCt)
