@@ -20,6 +20,15 @@ public sealed record AmbientVisionSettings
     /// <summary>Minimum seconds between unprompted comments.</summary>
     public int MinimumCommentIntervalSeconds { get; init; } = 300;
 
+    /// <summary>Selected local webcam device index (0–4).</summary>
+    public int CameraIndex { get; init; }
+
+    /// <summary>Locally installed Ollama vision-capable model.</summary>
+    public string VisionModel { get; init; } = "qwen3.5:4b";
+
+    /// <summary>Separately opt into audible spontaneous comments.</summary>
+    public bool SpeakRemarks { get; init; }
+
     /// <summary>Do not send ambient frames to cloud model providers.</summary>
     public bool LocalOnly { get; init; } = true;
 }
