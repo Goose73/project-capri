@@ -6,8 +6,8 @@ namespace Capri.Tests.Cli;
 public sealed class ModelHardwareFitTests
 {
     [Theory]
-    [InlineData(null, 6)]
-    [InlineData(16, null)]
+    [InlineData(null, 6d)]
+    [InlineData(16d, null)]
     [InlineData(null, null)]
     public void UnknownHardwareNeverClaimsGoodFit(double? ramGb, double? vramGb)
     {
