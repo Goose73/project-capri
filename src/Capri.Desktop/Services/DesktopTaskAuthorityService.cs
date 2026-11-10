@@ -248,6 +248,7 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
         catch { return; }
         if (!current.Ok || current.State is null || current.State.Stopped ||
             current.State.ActiveTask?.TaskId != approval.TaskId ||
+            approvalCts.IsCancellationRequested || serviceCt.IsCancellationRequested ||
             !ReferenceEquals(Volatile.Read(ref _client), originatingClient)) return;
 
         var approved = decision.Approved;
@@ -257,7 +258,9 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
             ApprovalId: approval.ApprovalId,
             PlanHash: approval.PlanHash,
             Workspace: approved ? decision?.Workspace : null);
-        try { await client.SendAsync(req, CancellationToken.None).ConfigureAwait(false); } catch { }
+        // Do not continue sending an approval after the owning service is stopped.
+        // Server-side approval identity and plan-hash checks remain authoritative.
+        try { await client.SendAsync(req, serviceCt).ConfigureAwait(false); } catch (OperationCanceledException) when (serviceCt.IsCancellationRequested) { } catch { }
     }
 
     private void SetStatus(string status)
