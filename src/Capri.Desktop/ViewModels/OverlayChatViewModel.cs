@@ -24,6 +24,7 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
     private readonly ILogger<OverlayChatViewModel> _logger;
     private readonly TaskCoordinator? _tasks;
     private readonly DesktopTaskAuthorityService? _authority;
+    private readonly AvatarPresentationService? _avatarPresentation;
     private readonly StringBuilder _pendingDelta = new();
     private readonly object _deltaSync = new();
     private readonly System.Threading.Timer _flushTimer;
@@ -62,7 +63,8 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
         IUiDispatcher dispatcher,
         ILogger<OverlayChatViewModel>? logger = null,
         TaskCoordinator? tasks = null,
-        DesktopTaskAuthorityService? authority = null)
+        DesktopTaskAuthorityService? authority = null,
+        AvatarPresentationService? avatarPresentation = null)
     {
         _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
@@ -71,6 +73,7 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
         _logger = logger ?? NullLogger<OverlayChatViewModel>.Instance;
         _tasks = tasks;
         _authority = authority;
+        _avatarPresentation = avatarPresentation;
 
         _flushTimer = new System.Threading.Timer(_ => FlushPendingDelta(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _settingsStore.Changed += OnSettingsChanged;
@@ -119,6 +122,10 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
             StatusText = "Thinking...";
         });
 
+        // A screen-reference prompt requests a purely visual turn. No screenshot
+        // or UI Automation is activated by the animation itself.
+        _avatarPresentation?.ObserveUserPrompt(text);
+
         _activeCts?.Cancel();
         _activeCts?.Dispose();
         _activeCts = new CancellationTokenSource();
@@ -152,6 +159,7 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
         }
         finally
         {
+            _avatarPresentation?.FinishUserPrompt();
             _dispatcher.Invoke(() =>
             {
                 FlushPendingDelta();
