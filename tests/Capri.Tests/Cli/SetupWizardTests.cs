@@ -31,12 +31,12 @@ public sealed class SetupWizardTests
 
         Assert.Equal(CliExitCodes.Success, exitCode);
         Assert.Contains("guide you through setup", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Back navigation is not supported", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Check what your computer can handle", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Find your local AI service", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Test your AI connection", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Ollama runs AI models", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Choose an AI model", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Test your AI connection", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Setup summary", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("qwen3.5:4b", fixture.Services.Settings.Current.Provider.ChatModel);
         Assert.Equal("ollama", fixture.Services.Settings.Current.Provider.ProviderId, StringComparer.OrdinalIgnoreCase);
@@ -91,6 +91,7 @@ public sealed class SetupWizardTests
         Assert.Equal(CliExitCodes.Success, exitCode);
         Assert.Equal(0, fixture.Ollama.PullCalls);
         Assert.Contains("cancel", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not rolled back", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
