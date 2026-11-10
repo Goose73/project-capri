@@ -44,6 +44,11 @@ public static class DesktopServiceCollectionExtensions
         services.AddCapriDesktopCoreServices();
 
         // Companion UX: transparent character window + compact chat panel (toggled by clicking Capri).
+        // These adapters are created lazily. No camera is opened by DI or app startup.
+        services.TryAddSingleton<IAmbientCameraCapture, OpenCvAmbientCameraCapture>();
+        services.TryAddSingleton<IAmbientVisionClient, LocalOllamaAmbientVision>();
+        services.TryAddSingleton<IAmbientCommentSpeech, WindowsAmbientCommentSpeech>();
+        services.TryAddSingleton<AmbientCompanionService>();
         services.TryAddSingleton<CharacterWindow>();
         services.TryAddSingleton<ChatPanelWindow>();
         services.TryAddTransient<SettingsWindow>();
