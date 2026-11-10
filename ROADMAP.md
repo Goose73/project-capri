@@ -9,6 +9,7 @@ Project Capri is an AI-powered Windows desktop companion (C# / WPF / .NET 10). T
 - [ ] **Real account sign-in and local model improvements:** browser sign-in with ChatGPT Plus/Pro only via documented authorized integration and separate from API keys; Ollama/LM Studio model detection, hardware consent and capability-aware recommendations; never scrape browser/OpenCode tokens.
 
 ## Current focus
+- [~] **Optional Ambient Companion webcam mode (privacy foundation only)** — local-only sampled observations with explicit per-session consent, visible camera indicator and tightly limited spontaneous commentary. Camera capture, Ollama multimodal inference, voice remarks and hardware acceptance are not implemented. See [docs/AMBIENT-COMPANION.md](docs/AMBIENT-COMPANION.md). This is independent of the removed Raspberry Pi Hub.
 
 ## Current M5 recovery increment (10 November 2026)
 

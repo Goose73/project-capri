@@ -1,5 +1,11 @@
 # Development progress
 
+## 2026-11-10 — Opt-in ambient companion vision policy foundation
+
+Added `AppSettings.AmbientVision` (disabled by default; no camera activation), a pure `AmbientVisionPolicy` enforcing fresh in-memory webcam consent, Windows permission, an on-screen active-camera indicator, local-only image inference, lock/pause and in-flight suppression, plus bounded frame sampling and optional commentary cooldown. Unit tests verify default-off behavior and strict restrictions. Detailed design and acceptance requirements in [docs/AMBIENT-COMPANION.md](AMBIENT-COMPANION.md).
+
+**Scope:** The actual webcam capture adapter, camera session controls/indicator, Ollama vision requests and proactive TTS remain future tasks. No camera stream is opened, no image is processed and no device testing has happened in this increment. Existing project priorities and previously removed Raspberry Pi Hub stay unchanged.
+
 ## 2026-11-10 — M5 durable stop latch on authority restart (PR pending)
 
 Fixed the authority's in-memory emergency-stop snapshot starting unlatched after process restart even when the shared file-backed ITaskControl retained a stop. The server now loads the persisted stop latch/generation before listening, reflects persisted state after stop/reset, and invalidates pending approvals and active cancellation on stop. A real named-pipe regression starts an authority, stops it, restarts a fresh authority against the same private task metadata, proves new submissions are rejected until explicit reset, and verifies the stop generation. Existing task execution and exact-plan approval remain gated. Windows CI and M4 supervised acceptance remain separate.
