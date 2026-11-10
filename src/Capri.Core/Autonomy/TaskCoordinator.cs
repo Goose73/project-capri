@@ -47,7 +47,7 @@ public interface ITaskJournal
 }
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "Stop cancellation source is replaced on ResetStop and retained for the coordinator lifetime.")]
-public sealed class TaskCoordinator
+public sealed class TaskCoordinator : ITaskRunner
 {
     // Absolute safety bounds. Local providers may receive a modestly larger
     // planning/execution budget, but never an unbounded one.

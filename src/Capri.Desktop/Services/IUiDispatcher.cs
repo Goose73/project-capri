@@ -13,4 +13,7 @@ public interface IUiDispatcher
 
     /// <summary>Invokes <paramref name="action"/> asynchronously on the UI thread.</summary>
     Task InvokeAsync(Action action, CancellationToken cancellationToken = default);
+
+    /// <summary>Invokes <paramref name="func"/> on the UI thread and returns its result.</summary>
+    Task<T> InvokeAsync<T>(Func<T> func, CancellationToken cancellationToken = default);
 }

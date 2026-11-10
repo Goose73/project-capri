@@ -1,6 +1,26 @@
 # Development progress
 
-## 2026-11-09 — M5 shared task-authority foundation (CLI + secure IPC, feature branch)
+## 2026-11-10 — M5 pending-approval lifetime hardening (PR #15, unverified)
+
+The desktop now retains its pending approval cancellation registration until authoritative state revalidation and the final IPC response have completed, rather than clearing it immediately when the approval dialog returns. State changes and emergency stop can therefore invalidate an in-flight approval response. The state query and final decision use the linked approval cancellation token; server-side task/approval/hash validation remains authoritative. Added a Windows desktop integration regression test that holds the UI prompt open, triggers emergency stop, checks prompt cancellation, and rejects late approval dispatch. **These changes are committed but not yet build/test verified; GitHub Actions verification remains outstanding.** No supervised M4 acceptance was simulated and the Raspberry Pi Hub remains removed.
+
+
+## 2026-11-10 — WPF pending-approval invalidation (PR #15, unverified)
+
+Desktop authority now cancels the pending UI approval token when authoritative events report emergency stop or a different/no active task, when a newer approval replaces the dialog, and during authority cleanup. A decision returned after cancellation is not forwarded. This complements (but does not replace) server-side task/approval/hash binding and the fresh-state check. **Verification pending:** no Windows build or automated tests were run for this commit; GitHub Actions has not yet established a passing check. Do not merge or claim M4/M5 acceptance until CI and explicit supervised user acceptance requirements are met. No device actions or approvals were simulated.
+
+
+## 2026-11-09 — M5 WPF authority integration (feature branch, verified build/tests)
+
+**Branch:** `feat/m5-wpf-authority-integration` (from `551b5fb`). Local Release build: **0 errors** (transient file-lock copy warnings possible when testhost processes linger; no code errors). **613 tests passed, 0 failed, 0 skipped** (`dotnet test Capri.sln -c Release --no-build`).
+
+**Implemented (verified):** Desktop `DesktopTaskAuthorityService` (hosted) connects to an existing per-user task authority or hosts an in-process `NamedPipeTaskAuthorityServer` on the current-user pipe, subscribes to state/events, and routes `ApprovalRequired` to an explicit WPF UI bridge (`WpfTaskAuthorityUiBridge`) — **never auto-approves**. Approval UI shows task ID, approval ID, exact canonical plan hash, provider/model (when available), goal, ordered steps, note text targets, risk/destructive-operation warnings, and requires intentional “Approve THIS exact plan” action; approval is unavailable when plan identity is incomplete/unverifiable. Decisions are sent only with bound `taskId + approvalId + planHash` (server enforces). Emergency stop/reset in chat UI routes through the authority when available. Chat panel displays authority connection and active-task/approval/stop state from authoritative events. Core adds `ITaskRunner`; orchestrator and desktop DI prefer the authority-backed runner for GUI `/task` submission when available (shared authority path). Read-only `DesktopTaskStatusPipeService` remains for compatibility.
+
+**Automated coverage added:** `DesktopAuthorityApprovalTests` (plan identity availability, exact binding/step display, risk text) and `DesktopTaskAuthorityServiceTests` (in-process hosted desktop service + external client simulating CLI: approval request bridged to fake UI with exact task/approval/plan hash and completion; UI denial prevents execution). Existing authority IPC/cross-process tests remain passing.
+
+**Not complete (M5 still incomplete):** full end-to-end GUI/CLI supervised acceptance not run; richer dedicated shared task dashboard/history UI (beyond chat status lines) and cancellation/approval controls for individual tasks from GUI can be improved; connection-loss recovery/reconnect UX and authority-restart approval invalidation need broader hardening tests; GUI `/task` through authority depends on desktop authority connectivity and should be validated in real Windows sessions. M4 live supervised acceptance remains pending (requires user). No Raspberry Pi Hub.
+
+## 2026-11-09 — M5 shared task-authority foundation (CLI + secure IPC, merged PR #13)
 
 **Branch:** `feat/m5-shared-task-authority` (from verified `2840f7c`). Local Release build succeeded; **608 tests passed, 0 failed, 0 skipped** (`dotnet test Capri.sln -c Release --no-build`). Reconciled with preserved local M5 work (`backup/local-m5-authority-foundation-20261109`, `stash@{0}` kept).
 

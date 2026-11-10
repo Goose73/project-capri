@@ -38,7 +38,7 @@ public sealed partial class AssistantOrchestrator : IAssistantOrchestrator, IDis
     private readonly IConversationStore _conversationStore;
     private readonly IAvatarStateMachine _avatarStateMachine;
     private readonly ILogger<AssistantOrchestrator> _logger;
-    private readonly TaskCoordinator? _tasks;
+    private readonly ITaskRunner? _tasks;
     private readonly SemaphoreSlim _turnGate = new(1, 1);
 
     /// <summary>
@@ -52,7 +52,7 @@ public sealed partial class AssistantOrchestrator : IAssistantOrchestrator, IDis
         IConversationStore conversationStore,
         IAvatarStateMachine avatarStateMachine,
         ILogger<AssistantOrchestrator>? logger = null,
-        TaskCoordinator? tasks = null)
+        ITaskRunner? tasks = null)
     {
         _intentParser = intentParser ?? throw new ArgumentNullException(nameof(intentParser));
         _automationService = automationService ?? throw new ArgumentNullException(nameof(automationService));

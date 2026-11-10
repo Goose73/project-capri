@@ -41,7 +41,7 @@ public static class CoreServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IConversationStore>(),
                 serviceProvider.GetRequiredService<IAvatarStateMachine>(),
                 serviceProvider.GetService<ILogger<AssistantOrchestrator>>(),
-                serviceProvider.GetService<TaskCoordinator>()));
+                serviceProvider.GetService<ITaskRunner>() ?? serviceProvider.GetService<TaskCoordinator>()));
 
         return services;
     }

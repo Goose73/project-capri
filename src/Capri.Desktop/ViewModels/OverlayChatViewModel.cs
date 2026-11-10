@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Text;
 using Capri.Core.Abstractions;
 using Capri.Core.Autonomy;
+using Capri.Core.Autonomy.Authority;
 using Capri.Core.Models;
 using Capri.Desktop.Services;
 using Capri.Providers;
@@ -22,6 +23,7 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
     private readonly IUiDispatcher _dispatcher;
     private readonly ILogger<OverlayChatViewModel> _logger;
     private readonly TaskCoordinator? _tasks;
+    private readonly DesktopTaskAuthorityService? _authority;
     private readonly StringBuilder _pendingDelta = new();
     private readonly object _deltaSync = new();
     private readonly System.Threading.Timer _flushTimer;
@@ -47,13 +49,20 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _modelStatus = string.Empty;
 
+    [ObservableProperty]
+    private string _authorityStatus = "Task authority: starting...";
+
+    [ObservableProperty]
+    private string _activeTaskStatus = "Active task: none";
+
     public OverlayChatViewModel(
         IAssistantOrchestrator orchestrator,
         IAppSettingsStore settingsStore,
         ISecureCredentialStore credentialStore,
         IUiDispatcher dispatcher,
         ILogger<OverlayChatViewModel>? logger = null,
-        TaskCoordinator? tasks = null)
+        TaskCoordinator? tasks = null,
+        DesktopTaskAuthorityService? authority = null)
     {
         _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
@@ -61,9 +70,15 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _logger = logger ?? NullLogger<OverlayChatViewModel>.Instance;
         _tasks = tasks;
+        _authority = authority;
 
         _flushTimer = new System.Threading.Timer(_ => FlushPendingDelta(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _settingsStore.Changed += OnSettingsChanged;
+        if (_authority is not null)
+        {
+            _authority.StateChanged += OnAuthorityStateChanged;
+            OnAuthorityStateChanged(null, EventArgs.Empty);
+        }
         UpdateModelStatus(_settingsStore.Current);
     }
 
@@ -314,17 +329,45 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
         _activeCts?.Cancel();
     }
 
-    [RelayCommand]
-    private void EmergencyStop()
+    private void OnAuthorityStateChanged(object? sender, EventArgs e)
     {
-        _tasks?.Stop();
+        if (_authority is null) return;
+        var status = _authority.ConnectionStatus;
+        var state = _authority.LastState;
+        var active = state?.ActiveTask is null
+            ? "Active task: none"
+            : $"Active task: {state.ActiveTask.TaskId:N} | {state.ActiveTask.Phase} | step {state.ActiveTask.StepIndex}{(state.ActiveTask.TotalSteps.HasValue ? "/" + state.ActiveTask.TotalSteps : "")}{(state.PendingApproval is not null ? " | APPROVAL REQUIRED" : "")}";
+        if (state?.Stopped == true) active += $" | STOP LATCHED (gen {state.StopGeneration})";
+        _dispatcher.Invoke(() =>
+        {
+            AuthorityStatus = "Task authority: " + status;
+            ActiveTaskStatus = active;
+        });
+    }
+
+    [RelayCommand]
+    private async Task EmergencyStopAsync()
+    {
         _activeCts?.Cancel();
+        if (_authority is not null)
+        {
+            var resp = await _authority.SendAsync(new AuthorityRequest(Guid.NewGuid().ToString("N"), AuthorityRequestKind.Stop)).ConfigureAwait(false);
+            StatusText = resp.Ok ? "Emergency stop requested via task authority." : ("Stop failed: " + (resp.Error ?? "unknown"));
+            return;
+        }
+        _tasks?.Stop();
         StatusText = "Task STOP latched. Reset explicitly to allow tasks.";
     }
 
     [RelayCommand]
-    private void ResetTaskStop()
+    private async Task ResetTaskStopAsync()
     {
+        if (_authority is not null)
+        {
+            var resp = await _authority.SendAsync(new AuthorityRequest(Guid.NewGuid().ToString("N"), AuthorityRequestKind.ResetStop)).ConfigureAwait(false);
+            StatusText = resp.Ok ? "Task stop reset via authority." : ("Reset failed: " + (resp.Error ?? "unknown"));
+            return;
+        }
         _tasks?.ResetStop();
         StatusText = "Task stop reset.";
     }
@@ -338,6 +381,7 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
 
         _disposed = true;
         _settingsStore.Changed -= OnSettingsChanged;
+        if (_authority is not null) _authority.StateChanged -= OnAuthorityStateChanged;
         _flushTimer.Dispose();
         _activeCts?.Cancel();
         _activeCts?.Dispose();
