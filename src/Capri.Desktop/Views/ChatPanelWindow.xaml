@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:Capri.Desktop.ViewModels"
         mc:Ignorable="d"
         Title="Capri Chat"
-        Width="360" Height="460"
+        Width="390" Height="555"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -107,6 +107,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -135,17 +136,36 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="2" Background="{StaticResource SurfaceBg}" CornerRadius="10" BorderBrush="#334A4060" BorderThickness="1">
+            <Border Grid.Row="2" Background="#33201A2D" BorderBrush="#664D98A6"
+                    BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,7">
+                <StackPanel>
+                    <TextBlock Text="AMBIENT COMPANION / WEBCAM" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource FaceGreen}"/>
+                    <TextBlock Text="{Binding Ambient.StatusText}" FontSize="10" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextDim}" Margin="0,2,0,5"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Start camera" Style="{StaticResource DarkButton}" Padding="7,4" Margin="0,0,4,0"
+                                ToolTip="Requires a separate camera consent dialog each session" Click="StartCamera_Click"/>
+                        <Button Content="Pause" Style="{StaticResource DarkButton}" Padding="7,4" Margin="0,0,4,0"
+                                Click="PauseCamera_Click"/>
+                        <Button Content="Resume" Style="{StaticResource DarkButton}" Padding="7,4" Margin="0,0,4,0"
+                                Click="ResumeCamera_Click"/>
+                        <Button Content="Stop" Style="{StaticResource DarkButton}" Padding="7,4"
+                                Click="StopCamera_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="3" Background="{StaticResource SurfaceBg}" CornerRadius="10" BorderBrush="#334A4060" BorderThickness="1">
                 <ScrollViewer x:Name="MessagesScroll" VerticalScrollBarVisibility="Auto" Padding="8">
                     <ItemsControl ItemsSource="{Binding Messages}"/>
                 </ScrollViewer>
             </Border>
 
-            <ProgressBar Grid.Row="3" Height="3" Margin="0,6,0,4" IsIndeterminate="True"
+            <ProgressBar Grid.Row="4" Height="3" Margin="0,6,0,4" IsIndeterminate="True"
                          Foreground="{StaticResource Magenta}" Background="#22FFFFFF" BorderThickness="0"
                          Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"/>
 
-            <Grid Grid.Row="4" Margin="0,4,0,0">
+            <Grid Grid.Row="5" Margin="0,4,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
