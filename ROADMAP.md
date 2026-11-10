@@ -10,6 +10,10 @@ Project Capri is an AI-powered Windows desktop companion (C# / WPF / .NET 10). T
 
 ## Current focus
 
+## Current M5 recovery increment (10 November 2026)
+
+- [~] **Durable emergency stop across authority restart:** authority restores the shared persisted stop latch and generation before accepting IPC, rejects new submissions while latched, and clears pending approval immediately on stop; integration test covers restart/reset. This does not constitute supervised M4 acceptance. See docs/PROGRESS.md.
+
 - [~] **M5 authority IPC reconnect recovery (2026-11-10):** new per-connection event streams after authority restart, failed handshake cleanup, completed-reader disconnect detection and duplicate in-flight request-ID protection; Windows named-pipe restart regression. Reconnect never replays submissions or approvals. CI and real supervised M4 acceptance are separate gates.
 - [~] **M5 exact approval request binding (2026-11-10):** require task ID + nonempty approval ID + canonical plan hash for both approval and denial; block read-only client connections from deciding approvals; regression tests cover missing/wrong IDs, pending-state preservation and replay. Declared approval capability is not authentication between same-user processes; CI and supervised Windows acceptance remain separate gates.
 
