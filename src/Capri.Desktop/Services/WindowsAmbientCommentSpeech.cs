@@ -22,7 +22,7 @@ public sealed class WindowsAmbientCommentSpeech : IAmbientCommentSpeech
         var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         void OnCompleted(object? sender, SpeakCompletedEventArgs e)
         {
-            if (e.Cancelled) finished.TrySetCanceled();
+            if (e.Cancelled) finished.TrySetCanceled(cancellationToken);
             else if (e.Error is not null) finished.TrySetException(e.Error);
             else finished.TrySetResult();
         }
