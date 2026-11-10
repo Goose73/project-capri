@@ -1,6 +1,6 @@
 # Project Capri
 
-**Ambient companion vision (planned, off by default):** a local-only webcam awareness feature is being designed for optional low-frequency visual observations and occasional non-intrusive remarks. Its consent/cadence policy is implemented, but camera capture, local vision inference, voice commentary and user-facing camera controls are not yet wired. See [Ambient Companion design](docs/AMBIENT-COMPANION.md). This is unrelated to the removed Pi Hub.
+**Ambient companion webcam (Windows source implementation, OFF by default):** Capri has explicitly consented webcam snapshots, local-only Ollama vision analysis, optional rate-limited chat remarks and optional offline Windows speech, with a visible camera indicator and pause/stop controls. A saved preference never automatically activates the webcam. The feature still needs real webcam/GPU acceptance testing before production. See [Ambient Companion instructions](docs/AMBIENT-COMPANION.md).
 
 **Scope decision (2026-11-09):** The optional Raspberry Pi Hub feature was removed because it was unnecessary for the current Project Capri goals. The PC's existing remote Wake-on-LAN/Tailscale setup already works independently. Prioritize supervised M4 acceptance and the Windows M5 shared task authority; do not reintroduce a Pi Hub without an explicit new request. See [development progress](docs/PROGRESS.md).
 
