@@ -20,7 +20,7 @@ public static class HelpText
           capri config get <setting> [--json]
           capri config set <setting> <value> [--json]
           capri models list [--json]     List installed local models (Ollama)
-          capri models recommend [--json]
+          capri models recommend [--json] [--yes]
                                          Recommend local models for this machine
           capri models pull <model> [--yes]
                                          Download a model after explicit confirmation
@@ -125,8 +125,12 @@ public static class HelpText
                 capri models use <model>
 
                 Manages local Ollama models through the local API. `list` shows
-                installed models. `recommend` detects hardware locally (CPU/RAM/GPU/
-                disk, best effort) and suggests compact models. `pull` shows the
+                installed models. `recommend` asks permission before detecting
+                CPU/RAM/GPU/disk and suggesting compatible models. Declining
+                provides no hardware-based suggestions. In scripts, --yes
+                explicitly authorizes these read-only checks (or a pull download
+                when used with `pull`). An oversized model may exceed memory and
+                cause slowdowns or crashes. `pull` shows the
                 model tag/size information and requires explicit confirmation before
                 download; use --yes only in non-interactive environments. `use`
                 verifies the model is installed and saves it to local settings.
