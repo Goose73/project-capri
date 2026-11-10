@@ -1,5 +1,9 @@
 # Development progress
 
+## 2026-11-10 — M5 desktop authority state retention (PR pending CI)
+
+The WPF authority event loop now preserves the last server-provided state snapshot when a progress-only or completion event omits `State`. Previously, a null event snapshot overwrote the cached state, potentially hiding active-task and emergency-stop status in the desktop. Added a hosted desktop/CLI regression test exercising task events and verifying a retained state. This does not change server-side approval binding, emergency-stop semantics, or authorization; Windows CI and supervised acceptance are still required. No Raspberry Pi Hub.
+
 ## 2026-11-10 — Task-watch parser test analyzer cleanup (verification pending)
 
 Rebased the test-only CA1861 cleanup onto current master rather than merging stale PR #12. The ordered `Assert.Collection` assertion preserves exact argument count and order without allocating a collection expression for the expected arguments. No runtime execution, approval, or IPC behavior changed. Windows CI verification is required before merge; M4 live supervised acceptance remains pending.
