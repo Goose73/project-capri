@@ -20,6 +20,7 @@ public sealed class SetupWizardTests
             chatProvider: StubSuccessProvider("Capri ready"),
             input:
             [
+                "y", // explicitly allow read-only hardware inspection
                 "1", // select recommended installed model
                 "s", "s", "s", "s", // voice
                 "s", "s", "s", "s", "s", "s", "s", "s", // ui/automation
@@ -51,6 +52,7 @@ public sealed class SetupWizardTests
             chatProvider: StubSuccessProvider("Capri ready"),
             input:
             [
+                "y", // explicitly allow read-only hardware inspection
                 "1", // choose recommended model (not installed)
                 "n", // decline download
                 "s", // skip model config
@@ -76,6 +78,7 @@ public sealed class SetupWizardTests
             chatProvider: StubSuccessProvider("Capri ready"),
             input:
             [
+                "y", // explicitly allow read-only hardware inspection
                 "1", // choose recommended model
                 "c", // cancel at download confirmation
             ]);
@@ -101,6 +104,7 @@ public sealed class SetupWizardTests
             },
             input:
             [
+                "y", // allow inspection
                 "1",
                 "s", "s", "s", "s",
                 "s", "s", "s", "s", "s", "s", "s", "s",
@@ -168,7 +172,7 @@ public sealed class SetupWizardTests
             settings: new AppSettings(),
             models: [new OllamaModelInfo { Name = "qwen3.5:4b" }],
             chatProvider: StubSuccessProvider("Capri ready"),
-            input: ["1", "s", "s", "s", "s", "s", "s", "s", "s", "s", "s", "s", "s"]);
+            input: ["y", "1", "s", "s", "s", "s", "s", "s", "s", "s", "s", "s", "s", "s"]);
         var badJson = "{ invalid settings";
         Directory.CreateDirectory(Path.GetDirectoryName(fixture.Services.Paths.SettingsFile)!);
         File.WriteAllText(fixture.Services.Paths.SettingsFile, badJson);
@@ -191,7 +195,7 @@ public sealed class SetupWizardTests
         using var fixture = new SetupFixture(
             settings: new AppSettings(),
             models: [new OllamaModelInfo { Name = "gemma3:1b" }],
-            input: [choice, "n", "c"]);
+            input: ["y", choice, "n", "c"]);
 
         var exitCode = await fixture.RunAsync(repair: false);
 
@@ -200,6 +204,23 @@ public sealed class SetupWizardTests
         Assert.DoesNotContain("gemma3:4b [installed]", fixture.Console.Out, StringComparison.Ordinal);
         Assert.Equal(0, fixture.Ollama.PullCalls);
         Assert.NotEqual("gemma3:4b", fixture.Services.Settings.Current.Provider.ChatModel);
+    }
+
+    [Fact]
+    public async Task DecliningHardwareInspectionDisablesRecommendationsAndDownloads()
+    {
+        using var fixture = new SetupFixture(
+            settings: new AppSettings(),
+            models: [new OllamaModelInfo { Name = "qwen3.5:4b" }],
+            input: ["n", "gemma3:4b", "c"]);
+
+        var exitCode = await fixture.RunAsync(repair: false);
+
+        Assert.Equal(CliExitCodes.Success, exitCode);
+        Assert.Contains("inspection declined", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Recommendations disabled", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("slowdowns or crashes", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, fixture.Ollama.PullCalls);
     }
 
     [Fact]
