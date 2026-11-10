@@ -30,10 +30,13 @@ public sealed class SetupWizardTests
         var exitCode = await fixture.RunAsync(repair: false);
 
         Assert.Equal(CliExitCodes.Success, exitCode);
-        Assert.Contains("Hardware detection", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Local provider detection", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Model recommendation", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Inference test", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("guide you through setup", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Check what your computer can handle", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Find your local AI service", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Test your AI connection", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Ollama runs AI models", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Choose an AI model", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Test your AI connection", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Setup summary", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("qwen3.5:4b", fixture.Services.Settings.Current.Provider.ChatModel);
         Assert.Equal("ollama", fixture.Services.Settings.Current.Provider.ProviderId, StringComparer.OrdinalIgnoreCase);
