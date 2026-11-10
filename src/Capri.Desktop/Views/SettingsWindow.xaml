@@ -168,6 +168,41 @@
 
                 <Expander>
                     <Expander.Header>
+                        <TextBlock Text="Ambient companion / webcam (optional)" FontSize="15"
+                                   FontWeight="SemiBold" Foreground="{StaticResource Magenta}"/>
+                    </Expander.Header>
+                    <Border Background="{StaticResource Surface2}" CornerRadius="8" Padding="12" Margin="0,4,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Webcam awareness is OFF until you explicitly press Start in Capri chat and confirm again every application session. Camera images stay in memory and go only to local Ollama at 127.0.0.1. No recording or cloud requests."
+                                       Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+                            <CheckBox Content="Allow optional webcam awareness"
+                                      IsChecked="{Binding AmbientEnabled}"/>
+                            <CheckBox Content="Allow occasional spontaneous comments (at most one per configured interval)"
+                                      IsChecked="{Binding AmbientAllowSpontaneousComments}"/>
+                            <CheckBox Content="Speak those comments aloud using offline Windows speech"
+                                      IsChecked="{Binding AmbientSpeakRemarks}"/>
+                            <TextBlock Text="{Binding AmbientCameraIndex, StringFormat=Camera device index: {0} (0 is default)}"
+                                       Foreground="{StaticResource Dim}"/>
+                            <Slider Minimum="0" Maximum="4" Value="{Binding AmbientCameraIndex, Mode=TwoWay}"
+                                    IsSnapToTickEnabled="True" TickFrequency="1"/>
+                            <TextBlock Text="Installed Ollama vision model" Foreground="{StaticResource Dim}"/>
+                            <TextBox Text="{Binding AmbientVisionModel, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                            <TextBlock Text="{Binding AmbientSampleSeconds, StringFormat=Snapshot interval: {0} seconds}"
+                                       Foreground="{StaticResource Dim}"/>
+                            <Slider Minimum="10" Maximum="120" TickFrequency="10" IsSnapToTickEnabled="True"
+                                    Value="{Binding AmbientSampleSeconds, Mode=TwoWay}"/>
+                            <TextBlock Text="{Binding AmbientCommentSeconds, StringFormat=Minimum interval between remarks: {0} seconds}"
+                                       Foreground="{StaticResource Dim}"/>
+                            <Slider Minimum="120" Maximum="1800" TickFrequency="60" IsSnapToTickEnabled="True"
+                                    Value="{Binding AmbientCommentSeconds, Mode=TwoWay}"/>
+                            <TextBlock Text="Save these settings first. Then use the camera controls in Capri chat to Start, Pause, Resume or Stop. Stopping or hiding Capri revokes session consent; restarting never silently reactivates the camera."
+                                       Foreground="{StaticResource Dim}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Expander>
+
+                <Expander>
+                    <Expander.Header>
                         <TextBlock Text="Character / animations" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Magenta}"/>
                     </Expander.Header>
                     <Border Background="{StaticResource Surface2}" CornerRadius="8" Padding="12" Margin="0,4,0,0">

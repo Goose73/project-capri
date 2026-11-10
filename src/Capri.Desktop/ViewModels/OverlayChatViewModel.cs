@@ -24,6 +24,9 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
     private readonly ILogger<OverlayChatViewModel> _logger;
     private readonly TaskCoordinator? _tasks;
     private readonly DesktopTaskAuthorityService? _authority;
+
+    /// <summary>User-controlled, session-scoped webcam companion, never started automatically.</summary>
+    public AmbientCompanionService? Ambient { get; }
     private readonly StringBuilder _pendingDelta = new();
     private readonly object _deltaSync = new();
     private readonly System.Threading.Timer _flushTimer;
@@ -62,7 +65,8 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
         IUiDispatcher dispatcher,
         ILogger<OverlayChatViewModel>? logger = null,
         TaskCoordinator? tasks = null,
-        DesktopTaskAuthorityService? authority = null)
+        DesktopTaskAuthorityService? authority = null,
+        AmbientCompanionService? ambient = null)
     {
         _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
@@ -71,6 +75,8 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
         _logger = logger ?? NullLogger<OverlayChatViewModel>.Instance;
         _tasks = tasks;
         _authority = authority;
+        Ambient = ambient;
+        if (Ambient is not null) Ambient.RemarkReady += OnAmbientRemark;
 
         _flushTimer = new System.Threading.Timer(_ => FlushPendingDelta(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _settingsStore.Changed += OnSettingsChanged;
@@ -80,6 +86,16 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
             OnAuthorityStateChanged(null, EventArgs.Empty);
         }
         UpdateModelStatus(_settingsStore.Current);
+    }
+
+    private void OnAmbientRemark(object? sender, AmbientRemarkEventArgs e)
+    {
+        if (_disposed || IsBusy) return;
+        _dispatcher.Invoke(() =>
+        {
+            if (!_disposed && !IsBusy)
+                Messages.Add(new ChatMessageViewModel("Capri", e.Text));
+        });
     }
 
     private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs e)
@@ -116,6 +132,7 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
             InputText = string.Empty;
             Messages.Add(new ChatMessageViewModel("You", text));
             IsBusy = true;
+            Ambient?.SetConversationBusy(true);
             StatusText = "Thinking...";
         });
 
@@ -158,6 +175,7 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
                 StopFlushTimer();
                 _streamingAssistantMessage = null;
                 IsBusy = false;
+                Ambient?.SetConversationBusy(false);
                 if (string.Equals(StatusText, "Thinking...", StringComparison.Ordinal) ||
                     string.Equals(StatusText, "Responding...", StringComparison.Ordinal))
                 {
@@ -381,6 +399,11 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
 
         _disposed = true;
         _settingsStore.Changed -= OnSettingsChanged;
+        if (Ambient is not null)
+        {
+            Ambient.RemarkReady -= OnAmbientRemark;
+            Ambient.SetConversationBusy(false);
+        }
         if (_authority is not null) _authority.StateChanged -= OnAuthorityStateChanged;
         _flushTimer.Dispose();
         _activeCts?.Cancel();

@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using Capri.Desktop.Interop;
+using Capri.Desktop.Services;
 using Capri.Desktop.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,12 +17,14 @@ public partial class ChatPanelWindow : Window
 
     private readonly OverlayChatViewModel _viewModel;
     private readonly IServiceProvider _serviceProvider;
+    private readonly AmbientCompanionService _ambient;
     private bool _allowClose;
 
     public ChatPanelWindow(OverlayChatViewModel viewModel, IServiceProvider serviceProvider)
     {
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        _ambient = serviceProvider.GetRequiredService<AmbientCompanionService>();
 
         InitializeComponent();
         DataContext = _viewModel;
@@ -133,6 +136,49 @@ public partial class ChatPanelWindow : Window
     {
         Hide();
     }
+
+    private async void StartCamera_Click(object sender, RoutedEventArgs e)
+    {
+        if (_ambient.IsObserving) return;
+        var settingsStore = _serviceProvider.GetRequiredService<Capri.Core.Abstractions.IAppSettingsStore>();
+        if (!settingsStore.Current.AmbientVision.Enabled)
+        {
+            MessageBox.Show(this,
+                "Enable Ambient Companion webcam awareness in Settings, then save. " +
+                "The preference alone never activates your camera.",
+                "Capri — camera is off", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var answer = MessageBox.Show(this,
+            "Allow Capri to periodically capture images from your webcam during THIS session?\n\n" +
+            "Snapshots are analysed only by Ollama on this PC (127.0.0.1). No images are " +
+            "saved, recorded, or sent to cloud providers. A CAM ON marker remains visible " +
+            "on the Capri character; Pause and Stop are available here. If enabled in " +
+            "Settings, Capri may occasionally comment or speak through local Windows speech.\n\n" +
+            "Please avoid including other people in the camera view without their knowledge. " +
+            "Hiding Capri, closing the app, or locking Windows stops the session.\n\nStart webcam awareness?",
+            "Capri — webcam consent", MessageBoxButton.YesNo, MessageBoxImage.Question,
+            MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes) return;
+
+        try { await _ambient.StartSessionAsync(confirmed: true).ConfigureAwait(true); }
+        catch (Exception)
+        {
+            MessageBox.Show(this, "Could not start camera awareness. Check local Ollama and Windows camera permissions.",
+                "Capri", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void PauseCamera_Click(object sender, RoutedEventArgs e) => _ambient.Pause();
+
+    private async void ResumeCamera_Click(object sender, RoutedEventArgs e)
+    {
+        try { await _ambient.ResumeAsync().ConfigureAwait(true); }
+        catch (Exception) { _ambient.Stop(); }
+    }
+
+    private void StopCamera_Click(object sender, RoutedEventArgs e) => _ambient.Stop();
 
     private void MicButton_Click(object sender, RoutedEventArgs e)
     {

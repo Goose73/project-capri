@@ -79,6 +79,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _reduceMotion;
 
+    [ObservableProperty] private bool _ambientEnabled;
+    [ObservableProperty] private bool _ambientAllowSpontaneousComments;
+    [ObservableProperty] private bool _ambientSpeakRemarks;
+    [ObservableProperty] private int _ambientCameraIndex;
+    [ObservableProperty] private string _ambientVisionModel = "qwen3.5:4b";
+    [ObservableProperty] private int _ambientSampleSeconds = 20;
+    [ObservableProperty] private int _ambientCommentSeconds = 300;
+
     [ObservableProperty]
     private bool _allowCloudInference;
 
@@ -221,6 +229,13 @@ public sealed partial class SettingsViewModel : ObservableObject
             AllowMediaControl = current.Automation.AllowMediaControl;
             CharacterHeight = Math.Clamp(current.Ui.CharacterHeight, 150, 400);
             ReduceMotion = current.Ui.ReduceMotion;
+            AmbientEnabled = current.AmbientVision.Enabled;
+            AmbientAllowSpontaneousComments = current.AmbientVision.AllowSpontaneousComments;
+            AmbientSpeakRemarks = current.AmbientVision.SpeakRemarks;
+            AmbientCameraIndex = current.AmbientVision.CameraIndex;
+            AmbientVisionModel = current.AmbientVision.VisionModel;
+            AmbientSampleSeconds = current.AmbientVision.SampleIntervalSeconds;
+            AmbientCommentSeconds = current.AmbientVision.MinimumCommentIntervalSeconds;
             SelectedPreset = FindPreset(current.Provider.ProviderId, current.Provider.BaseUrl);
         }
         finally
@@ -347,6 +362,17 @@ public sealed partial class SettingsViewModel : ObservableObject
                 {
                     CharacterHeight = Math.Clamp(CharacterHeight, 150, 400),
                     ReduceMotion = ReduceMotion
+                },
+                AmbientVision = current.AmbientVision with
+                {
+                    Enabled = AmbientEnabled,
+                    AllowSpontaneousComments = AmbientAllowSpontaneousComments,
+                    SpeakRemarks = AmbientSpeakRemarks,
+                    CameraIndex = Math.Clamp(AmbientCameraIndex, 0, 4),
+                    VisionModel = (AmbientVisionModel ?? string.Empty).Trim(),
+                    SampleIntervalSeconds = Math.Clamp(AmbientSampleSeconds, 10, 3600),
+                    MinimumCommentIntervalSeconds = Math.Clamp(AmbientCommentSeconds, 120, 86400),
+                    LocalOnly = true
                 }
             };
 

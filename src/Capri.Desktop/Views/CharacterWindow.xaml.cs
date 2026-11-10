@@ -28,6 +28,7 @@ public partial class CharacterWindow : Window, IOverlayController
     private const int MaxCharacterHeight = 400;
 
     private readonly AvatarPresentationService _avatarPresentation;
+    private readonly AmbientCompanionService _ambient;
     private readonly IServiceProvider _serviceProvider;
     private readonly IAppSettingsStore _settingsStore;
     private readonly ILogger<CharacterWindow> _logger;
@@ -47,11 +48,13 @@ public partial class CharacterWindow : Window, IOverlayController
         AvatarPresentationService avatarPresentation,
         IServiceProvider serviceProvider,
         IAppSettingsStore settingsStore,
+        AmbientCompanionService ambient,
         ILogger<CharacterWindow>? logger = null)
     {
         _avatarPresentation = avatarPresentation ?? throw new ArgumentNullException(nameof(avatarPresentation));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
+        _ambient = ambient ?? throw new ArgumentNullException(nameof(ambient));
         _logger = logger ?? NullLogger<CharacterWindow>.Instance;
 
         InitializeComponent();
@@ -59,6 +62,7 @@ public partial class CharacterWindow : Window, IOverlayController
         Avatar.State = _avatarPresentation.DisplayState;
         Avatar.ReduceMotion = _avatarPresentation.ReduceMotion;
         _avatarPresentation.PropertyChanged += AvatarPresentation_PropertyChanged;
+        _ambient.PropertyChanged += Ambient_PropertyChanged;
         _settingsStore.Changed += SettingsStore_Changed;
 
         _saveDebounceTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
@@ -72,6 +76,15 @@ public partial class CharacterWindow : Window, IOverlayController
         LocationChanged += OnLocationChanged;
         DpiChanged += OnDpiChanged;
         Closed += OnClosed;
+    }
+
+    private void Ambient_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AmbientCompanionService.IsObserving))
+        {
+            Dispatcher.BeginInvoke(() => WebcamActiveBadge.Visibility =
+                _ambient.IsObserving ? Visibility.Visible : Visibility.Collapsed);
+        }
     }
 
     private void AvatarPresentation_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -119,6 +132,8 @@ public partial class CharacterWindow : Window, IOverlayController
         }
         else
         {
+            // A hidden Capri cannot show its camera indicator: revoke consent before hiding.
+            _ambient.Stop();
             // Hiding the companion hides the chat panel; tray toggle remains coherent.
             _saveDebounceTimer.Stop();
             _chatPanel?.Hide();
@@ -162,6 +177,8 @@ public partial class CharacterWindow : Window, IOverlayController
         _saveDebounceTimer.Tick -= SaveDebounceTimer_Tick;
         _settingsStore.Changed -= SettingsStore_Changed;
         _avatarPresentation.PropertyChanged -= AvatarPresentation_PropertyChanged;
+        _ambient.PropertyChanged -= Ambient_PropertyChanged;
+        _ambient.Stop();
     }
 
     private async void SaveDebounceTimer_Tick(object? sender, EventArgs e)
@@ -522,6 +539,7 @@ public partial class CharacterWindow : Window, IOverlayController
 
     public void HideOverlay()
     {
+        _ambient.Stop();
         _chatPanel?.Hide();
         if (IsVisible)
         {
