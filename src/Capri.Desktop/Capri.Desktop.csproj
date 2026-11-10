@@ -15,7 +15,6 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="OpenCvSharp4.Windows" />
     <PackageReference Include="System.Speech" />
-    <PackageReference Include="Microsoft.Win32.SystemEvents" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Formatting.Compact" />
     <PackageReference Include="Serilog.Sinks.Debug" />
