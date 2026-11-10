@@ -216,10 +216,42 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
             if (_lastState is { } state && (state.Stopped || state.ActiveTask?.TaskId != approval.TaskId))
                 approvalCts.Cancel();
         }
-        AuthorityApprovalDecision? decision;
-        try { decision = await _ui.RequestApprovalAsync(approval, approvalCts.Token).ConfigureAwait(false); }
-        catch (OperationCanceledException) { decision = null; }
-        catch { decision = null; }
+        try
+        {
+            AuthorityApprovalDecision? decision;
+            try { decision = await _ui.RequestApprovalAsync(approval, approvalCts.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException) { decision = null; }
+            catch { decision = null; }
+
+            // Keep this request registered until the final IPC response completes.
+            // Otherwise an emergency stop or task replacement during state revalidation
+            // cannot invalidate the decision after the dialog has closed.
+            if (decision is null || approvalCts.IsCancellationRequested || serviceCt.IsCancellationRequested) return;
+            var client = Volatile.Read(ref _client);
+            if (!ReferenceEquals(client, originatingClient)) return;
+            AuthorityResponse current;
+            try
+            {
+                current = await client.SendAsync(new AuthorityRequest(Guid.NewGuid().ToString("N"), AuthorityRequestKind.GetState), approvalCts.Token).ConfigureAwait(false);
+            }
+            catch { return; }
+            if (!current.Ok || current.State is null || current.State.Stopped ||
+                current.State.ActiveTask?.TaskId != approval.TaskId ||
+                approvalCts.IsCancellationRequested || serviceCt.IsCancellationRequested ||
+                !ReferenceEquals(Volatile.Read(ref _client), originatingClient)) return;
+
+            var approved = decision.Approved;
+            var req = new AuthorityRequest(Guid.NewGuid().ToString("N"),
+                approved ? AuthorityRequestKind.Approve : AuthorityRequestKind.Deny,
+                TaskId: approval.TaskId,
+                ApprovalId: approval.ApprovalId,
+                PlanHash: approval.PlanHash,
+                Workspace: approved ? decision.Workspace : null);
+            // The server performs the final atomic task/approval/hash validation.
+            try { await client.SendAsync(req, approvalCts.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (approvalCts.IsCancellationRequested) { }
+            catch { }
+        }
         finally
         {
             lock (_sync)
@@ -231,36 +263,6 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
                 }
             }
         }
-
-        // A dismissed/cancelled prompt is not a fresh user decision. In particular,
-        // never forward a decision from an old authority connection to a new one.
-        if (decision is null || approvalCts.IsCancellationRequested || serviceCt.IsCancellationRequested) return;
-        var client = Volatile.Read(ref _client);
-        if (!ReferenceEquals(client, originatingClient)) return;
-        // Re-read authoritative state after the human has interacted with the dialog.
-        // A cancellation, stop, or task replacement may have occurred while it was open.
-        // The server remains responsible for final approvalId/planHash validation.
-        AuthorityResponse current;
-        try
-        {
-            current = await client.SendAsync(new AuthorityRequest(Guid.NewGuid().ToString("N"), AuthorityRequestKind.GetState), serviceCt).ConfigureAwait(false);
-        }
-        catch { return; }
-        if (!current.Ok || current.State is null || current.State.Stopped ||
-            current.State.ActiveTask?.TaskId != approval.TaskId ||
-            approvalCts.IsCancellationRequested || serviceCt.IsCancellationRequested ||
-            !ReferenceEquals(Volatile.Read(ref _client), originatingClient)) return;
-
-        var approved = decision.Approved;
-        var req = new AuthorityRequest(Guid.NewGuid().ToString("N"),
-            approved ? AuthorityRequestKind.Approve : AuthorityRequestKind.Deny,
-            TaskId: approval.TaskId,
-            ApprovalId: approval.ApprovalId,
-            PlanHash: approval.PlanHash,
-            Workspace: approved ? decision?.Workspace : null);
-        // Do not continue sending an approval after the owning service is stopped.
-        // Server-side approval identity and plan-hash checks remain authoritative.
-        try { await client.SendAsync(req, serviceCt).ConfigureAwait(false); } catch (OperationCanceledException) when (serviceCt.IsCancellationRequested) { } catch { }
     }
 
     private void SetStatus(string status)
