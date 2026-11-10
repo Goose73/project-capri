@@ -3,6 +3,7 @@ using System.Text;
 using Capri.Core.Abstractions;
 using Capri.Core.Autonomy;
 using Capri.Core.Autonomy.Authority;
+using Capri.Core.Avatar;
 using Capri.Core.Models;
 using Capri.Desktop.Services;
 using Capri.Providers;
@@ -109,6 +110,35 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
         var text = InputText?.Trim();
         if (string.IsNullOrWhiteSpace(text) || IsBusy)
         {
+            return;
+        }
+
+        // Interactive animation preview is local UI-only: never sends a request to
+        // a model, reads the screen, uses the microphone or dispatches any task.
+        if (text.Equals("/animations", StringComparison.OrdinalIgnoreCase) ||
+            text.Equals("/animate", StringComparison.OrdinalIgnoreCase) ||
+            text.StartsWith("/animate ", StringComparison.OrdinalIgnoreCase))
+        {
+            var name = text.StartsWith("/animate ", StringComparison.OrdinalIgnoreCase)
+                ? text["/animate ".Length..].Trim() : string.Empty;
+            var cue = AvatarCuePlanner.PreviewCue(name);
+            _dispatcher.Invoke(() =>
+            {
+                InputText = string.Empty;
+                Messages.Add(new ChatMessageViewModel("You", text));
+                if (cue != AvatarCueKind.None && _avatarPresentation is not null)
+                {
+                    _avatarPresentation.PreviewCue(cue);
+                    Messages.Add(new ChatMessageViewModel("Capri",
+                        "Animation preview: " + name + ". This is visual only; no screen or microphone data was accessed."));
+                }
+                else
+                {
+                    Messages.Add(new ChatMessageViewModel("Capri",
+                        "Animation previews: /animate summon, turn, return, left, right, scan, nod, shake, hop, lean, step-left, step-right, blink, wink, speak. " +
+                        "Use /animate return after turn. Extra facial/turned poses require approved aligned sprites."));
+                }
+            });
             return;
         }
 
