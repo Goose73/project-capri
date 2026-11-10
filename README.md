@@ -1,5 +1,7 @@
 # Project Capri
 
+**Ambient companion vision (planned, off by default):** a local-only webcam awareness feature is being designed for optional low-frequency visual observations and occasional non-intrusive remarks. Its consent/cadence policy is implemented, but camera capture, local vision inference, voice commentary and user-facing camera controls are not yet wired. See [Ambient Companion design](docs/AMBIENT-COMPANION.md). This is unrelated to the removed Pi Hub.
+
 **Scope decision (2026-11-09):** The optional Raspberry Pi Hub feature was removed because it was unnecessary for the current Project Capri goals. The PC's existing remote Wake-on-LAN/Tailscale setup already works independently. Prioritize supervised M4 acceptance and the Windows M5 shared task authority; do not reintroduce a Pi Hub without an explicit new request. See [development progress](docs/PROGRESS.md).
 
 **New architecture and animation direction (2026-11-10):** Capri prioritizes a guided Windows GUI for most users and an **optional future developer TUI**, without copying OpenCode's interface. See the [OpenCode capability audit](docs/OPENCODE-CAPABILITY-ROADMAP.md) and [Capri animation direction](docs/CAPRI-ANIMATION-DIRECTION.md). The current implementation adds basic expressive whole-sprite motion; detailed screen-look, wake-word, eyes/mouth/limb animation, full developer TUI and original cleared animation rigs are not yet available. All computer actions stay subject to exact-plan human approval.
