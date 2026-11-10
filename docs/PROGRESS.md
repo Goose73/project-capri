@@ -1,5 +1,9 @@
 # Development progress
 
+## 2026-11-10 — Ollama hardware recommendation confidence (PR pending)
+
+Replaced process-level GC memory limit with a best-effort Windows CIM physical-RAM reading in `capri models recommend`. Removed an unsafe RTX 3050 name-to-6GB VRAM assumption (different variants exist); unknown RAM or VRAM now yields an explicit unknown fit rather than a confident 4B recommendation. Applied the same conservative fit to Phi/Gemma 4B options and added deterministic fit tests. Detection remains best-effort and read-only; no model downloads or device actions occur. Windows CI and actual hardware validation pending. ChatGPT subscription sign-in is **not implemented** by this change; it requires a documented, authorized integration, not an API-key substitute or cookie scraping.
+
 ## 2026-11-10 — Task-watch parser test analyzer cleanup (verification pending)
 
 Rebased the test-only CA1861 cleanup onto current master rather than merging stale PR #12. The ordered `Assert.Collection` assertion preserves exact argument count and order without allocating a collection expression for the expected arguments. No runtime execution, approval, or IPC behavior changed. Windows CI verification is required before merge; M4 live supervised acceptance remains pending.
