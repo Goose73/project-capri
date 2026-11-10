@@ -18,9 +18,12 @@ public sealed class LocalOllamaAmbientVisionTests
     {
         var handler = new FakeHttpMessageHandler((request, index, ct) =>
         {
-            var json = index == 0
-                ? """{"models":[{"name":"qwen3.5:4b"}]}"""
-                : """{"message":{"content":"{\"meaningful\":true,\"remark\":\"A colourful model is on the desk!\"}"}}""";
+            var json = index switch
+            {
+                0 => """{"models":[{"name":"qwen3.5:4b","size":2540000000}]}""",
+                1 => """{"capabilities":["completion","vision"]}""",
+                _ => """{"message":{"content":"{\"meaningful\":true,\"remark\":\"A colourful model is on the desk!\"}"}}"""
+            };
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
@@ -34,7 +37,7 @@ public sealed class LocalOllamaAmbientVisionTests
         Assert.True(observation.Meaningful);
         Assert.Equal("A colourful model is on the desk!", observation.Remark);
 
-        Assert.Equal(2, handler.RequestCount);
+        Assert.Equal(3, handler.RequestCount);
         Assert.All(handler.Requests, call =>
         {
             Assert.Equal("127.0.0.1", call.RequestUri?.Host);
@@ -43,8 +46,9 @@ public sealed class LocalOllamaAmbientVisionTests
             Assert.Null(call.Authorization);
         });
         Assert.EndsWith("/api/tags", handler.Requests[0].RequestUri!.AbsolutePath);
-        Assert.EndsWith("/api/chat", handler.Requests[1].RequestUri!.AbsolutePath);
-        using var sent = JsonDocument.Parse(handler.Requests[1].Body!);
+        Assert.EndsWith("/api/show", handler.Requests[1].RequestUri!.AbsolutePath);
+        Assert.EndsWith("/api/chat", handler.Requests[2].RequestUri!.AbsolutePath);
+        using var sent = JsonDocument.Parse(handler.Requests[2].Body!);
         var image = sent.RootElement.GetProperty("messages")[0].GetProperty("images")[0].GetString();
         Assert.Equal(MinimalJpeg, Convert.FromBase64String(image!));
         Assert.False(sent.RootElement.GetProperty("stream").GetBoolean());
@@ -55,6 +59,7 @@ public sealed class LocalOllamaAmbientVisionTests
     {
         Assert.False(LocalOllamaAmbientVision.IsValidModel("qwen3.5:4b\nhttps://evil"));
         Assert.False(LocalOllamaAmbientVision.IsValidModel(""));
+        Assert.False(LocalOllamaAmbientVision.IsValidModel("qwen3.5:4b-cloud"));
         Assert.True(LocalOllamaAmbientVision.IsValidModel("gemma3:4b"));
 
         var handler = FakeHttpMessageHandler.Json("{}");
@@ -63,6 +68,40 @@ public sealed class LocalOllamaAmbientVisionTests
         Assert.ThrowsAsync<InvalidDataException>(() =>
             vision.ObserveAsync("qwen3.5:4b", [0xFF, 0xD8], CancellationToken.None)).GetAwaiter().GetResult();
         Assert.Equal(0, handler.RequestCount);
+    }
+
+    [Theory]
+    [InlineData("""{"capabilities":["completion"]}""")]
+    [InlineData("""{"remote_model":"gemma:cloud","remote_host":"https://ollama.com","capabilities":["vision"]}""")]
+    [InlineData("""{}""")]
+    public async Task RejectsUnverifiedRemoteOrNonVisionModels(string modelInfo)
+    {
+        var handler = new FakeHttpMessageHandler((_, index, _) =>
+        {
+            var json = index == 0
+                ? """{"models":[{"name":"qwen3.5:4b","size":2540000000}]}"""
+                : modelInfo;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            });
+        });
+        using var http = new HttpClient(handler);
+        using var vision = new LocalOllamaAmbientVision(http);
+        Assert.False(await vision.IsModelReadyAsync("qwen3.5:4b", CancellationToken.None));
+        Assert.Equal(2, handler.RequestCount);
+        Assert.DoesNotContain(handler.Requests, r => r.RequestUri!.AbsolutePath == "/api/chat");
+    }
+
+    [Fact]
+    public async Task RemoteModelWithNoLocalBlobIsRejectedBeforeShow()
+    {
+        var handler = FakeHttpMessageHandler.Json(
+            """{"models":[{"name":"qwen3.5:4b","size":0,"remote_model":"cloud"}]}""");
+        using var http = new HttpClient(handler);
+        using var vision = new LocalOllamaAmbientVision(http);
+        Assert.False(await vision.IsModelReadyAsync("qwen3.5:4b", CancellationToken.None));
+        Assert.Equal(1, handler.RequestCount);
     }
 
     [Theory]
