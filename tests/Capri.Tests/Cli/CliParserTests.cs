@@ -155,6 +155,17 @@ public sealed class CliParserTests
     }
 
     [Fact]
+    public void ModelsRecommendAcceptsExplicitHardwareConsent()
+    {
+        var invocation = CliParser.Parse(["models", "recommend", "--yes", "--json"]);
+
+        Assert.True(invocation.IsValid);
+        Assert.True(invocation.Yes);
+        Assert.True(invocation.Json);
+        Assert.Equal(["recommend"], invocation.Arguments);
+    }
+
+    [Fact]
     public void ModelsPullParsesYesFlag()
     {
         var invocation = CliParser.Parse(["models", "pull", "qwen3.5:4b", "--yes"]);

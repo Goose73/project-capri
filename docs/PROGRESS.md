@@ -1,5 +1,9 @@
 # Development progress
 
+## 2026-11-10 — Standalone model recommendation permission gate (PR pending)
+
+Audited the CLI, Ollama, onboarding, cloud-consent guards and M5 authority paths against current master and GitHub Actions. Discovered that `capri models recommend` bypassed the explicit hardware-inspection permission used by `capri setup`. Now the standalone recommendation command asks first, refuses non-interactive/JSON requests without an explicit `--yes`, and does not run hardware probes or even query Ollama when declined. Interactive JSON consent messages go to stderr to keep stdout machine-readable. Removed the unconditional RTX 3050-specific recommendation language from the standalone and setup recommendations; clarified that the terminal wizard has no backwards navigation and corrected cancellation copy to acknowledge any previously saved settings. Added opt-in, denial, scripted-mode and JSON regressions. Existing explicit model-download confirmation and task-approval rules are unchanged. Windows CI and actual hardware acceptance are still required. Separate finding: the previously merged hardware-fit InlineData tests caused two Windows CI test failures; fixed in merged PR #22 (622/622 tests passed on PR CI run 42803405389).
+
 ## 2026-11-10 — Guided first-run explanations (CI pending)
 
 Improved CLI setup wording for beginners: each of the hardware, local-provider, model selection, and inference-test stages now explains what it does, why it matters, and what is optional. Setup still asks before running Windows hardware inspection or downloading a model, and cloud inference retains its separate consent gate. Added guidance assertions to the setup integration tests. This is a CLI guidance increment, **not yet a complete graphical onboarding flow**, and must pass Windows CI before merging.
