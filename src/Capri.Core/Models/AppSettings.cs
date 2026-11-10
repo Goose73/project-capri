@@ -1,3 +1,5 @@
+using Capri.Core.Companion;
+
 namespace Capri.Core.Models;
 
 /// <summary>
@@ -31,6 +33,13 @@ public sealed record AppSettings
     /// Voice input and output configuration.
     /// </summary>
     public VoiceSettings Voice { get; init; } = new();
+
+    /// <summary>
+    /// Future optional local webcam companion preferences. Disabled by default.
+    /// A saved Enabled preference is never sufficient to begin camera capture:
+    /// each application session requires fresh, explicit user consent.
+    /// </summary>
+    public AmbientVisionSettings AmbientVision { get; init; } = new();
 
     /// <summary>
     /// Chat provider configuration. No API keys or other secrets are stored here.
