@@ -1,5 +1,9 @@
 # Development progress
 
+## 2026-11-10 — Guided first-run explanations (CI pending)
+
+Improved CLI setup wording for beginners: each of the hardware, local-provider, model selection, and inference-test stages now explains what it does, why it matters, and what is optional. Setup still asks before running Windows hardware inspection or downloading a model, and cloud inference retains its separate consent gate. Added guidance assertions to the setup integration tests. This is a CLI guidance increment, **not yet a complete graphical onboarding flow**, and must pass Windows CI before merging.
+
 ## 2026-11-10 — Ollama hardware recommendation confidence (PR pending)
 
 Setup now asks for explicit opt-in before running local Windows hardware inspection commands. Declining skips hardware probes, suppresses recommendation choices and model downloads in the wizard, warns about out-of-memory crashes, and still allows manual selection of an already-installed model. Added consent regression coverage. Replaced process-level GC memory limit with a best-effort Windows CIM physical-RAM reading in `capri models recommend`. Removed an unsafe RTX 3050 name-to-6GB VRAM assumption (different variants exist); unknown RAM or VRAM now yields an explicit unknown fit rather than a confident 4B recommendation. Applied the same conservative fit to Phi/Gemma 4B options and added deterministic fit tests. Detection remains best-effort and read-only; no model downloads or device actions occur. Windows CI and actual hardware validation pending. ChatGPT subscription sign-in is **not implemented** by this change; it requires a documented, authorized integration, not an API-key substitute or cookie scraping.
