@@ -15,6 +15,7 @@
                     <ScaleTransform x:Name="MotionScale" ScaleX="1" ScaleY="1"/>
                     <TranslateTransform x:Name="MotionTranslate" X="0" Y="0"/>
                     <RotateTransform x:Name="MotionRotate" Angle="0"/>
+                    <RotateTransform x:Name="GazeHeadRotate" Angle="0"/>
                 </TransformGroup>
             </Grid.RenderTransform>
             <Image x:Name="AvatarImage"
@@ -22,6 +23,25 @@
                    RenderOptions.BitmapScalingMode="HighQuality"
                    Visibility="Collapsed"
                    IsHitTestVisible="True"/>
+            <!-- Optional full-canvas pose frame (turn-away, gesture, step, etc.). -->
+            <Image x:Name="CuePoseImage" Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   Visibility="Collapsed" IsHitTestVisible="False"/>
+            <!-- Optional independent transparent eye/mouth layers. Base artwork
+                 must be prepared with matching rig anchors, not duplicated pupils. -->
+            <Image x:Name="EyesImage" Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   Visibility="Collapsed" IsHitTestVisible="False">
+                <Image.RenderTransform>
+                    <TranslateTransform x:Name="EyeTranslate"/>
+                </Image.RenderTransform>
+            </Image>
+            <Image x:Name="MouthImage" Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   Visibility="Collapsed" IsHitTestVisible="False"/>
+            <Image x:Name="BlinkPoseImage" Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   Visibility="Collapsed" IsHitTestVisible="False"/>
             <Border x:Name="AssetPlaceholder"
                     Visibility="Visible"
                     Background="#CC101015"
