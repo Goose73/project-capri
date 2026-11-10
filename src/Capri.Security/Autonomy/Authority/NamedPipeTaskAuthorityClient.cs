@@ -15,7 +15,11 @@ public sealed class NamedPipeTaskAuthorityClient : ITaskAuthorityClient
     private readonly SemaphoreSlim _connectLock = new(1, 1);
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<AuthorityResponse>> _pending = new();
-    private readonly Channel<AuthorityEvent> _events = Channel.CreateUnbounded<AuthorityEvent>(new UnboundedChannelOptions { SingleReader = false, SingleWriter = true });
+    private Channel<AuthorityEvent> _events = CreateEventChannel();
+    private bool _disposed;
+
+    private static Channel<AuthorityEvent> CreateEventChannel() => Channel.CreateUnbounded<AuthorityEvent>(
+        new UnboundedChannelOptions { SingleReader = false, SingleWriter = true });
     private NamedPipeClientStream? _pipe;
     private Task? _reader;
     private CancellationTokenSource? _linkCts;
@@ -35,6 +39,7 @@ public sealed class NamedPipeTaskAuthorityClient : ITaskAuthorityClient
 
     public async ValueTask EnsureConnectedAsync(CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (IsConnected) return;
         await _connectLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -46,12 +51,25 @@ public sealed class NamedPipeTaskAuthorityClient : ITaskAuthorityClient
             cts.CancelAfter(_connectTimeout);
             await pipe.ConnectAsync(cts.Token).ConfigureAwait(false);
             _pipe = pipe;
+            _events = CreateEventChannel();
             _linkCts = new CancellationTokenSource();
-            _reader = Task.Run(() => ReadLoopAsync(pipe, _linkCts.Token), CancellationToken.None);
-            var hello = await SendCoreAsync(new AuthorityRequest(NextId(), AuthorityRequestKind.Hello, ClientName: _clientName, CanApprove: _canApprove), cancellationToken).ConfigureAwait(false);
-            if (!hello.Ok) throw new InvalidOperationException(hello.Error ?? "Authority hello failed.");
-            var sub = await SendCoreAsync(new AuthorityRequest(NextId(), AuthorityRequestKind.Subscribe), cancellationToken).ConfigureAwait(false);
-            if (!sub.Ok) throw new InvalidOperationException(sub.Error ?? "Authority subscribe failed.");
+            var linkToken = _linkCts.Token;
+            var events = _events;
+            _reader = Task.Run(() => ReadLoopAsync(pipe, events, linkToken), CancellationToken.None);
+            try
+            {
+                var hello = await SendCoreAsync(new AuthorityRequest(NextId(), AuthorityRequestKind.Hello, ClientName: _clientName, CanApprove: _canApprove), cancellationToken).ConfigureAwait(false);
+                if (!hello.Ok) throw new InvalidOperationException(hello.Error ?? "Authority hello failed.");
+                var sub = await SendCoreAsync(new AuthorityRequest(NextId(), AuthorityRequestKind.Subscribe), cancellationToken).ConfigureAwait(false);
+                if (!sub.Ok) throw new InvalidOperationException(sub.Error ?? "Authority subscribe failed.");
+            }
+            catch
+            {
+                // Failed handshakes must not leave an apparently connected pipe
+                // or a dangling reader that poisons the next connection.
+                await DisconnectCoreAsync().ConfigureAwait(false);
+                throw;
+            }
         }
         finally { _connectLock.Release(); }
     }
@@ -67,21 +85,25 @@ public sealed class NamedPipeTaskAuthorityClient : ITaskAuthorityClient
     {
         var pipe = _pipe ?? throw new InvalidOperationException("Not connected.");
         var tcs = new TaskCompletionSource<AuthorityResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pending[request.RequestId] = tcs;
+        if (!_pending.TryAdd(request.RequestId, tcs))
+            throw new InvalidOperationException("Duplicate in-flight authority request ID.");
         using var reg = ct.Register(() => { if (_pending.TryRemove(request.RequestId, out var p)) p.TrySetCanceled(ct); });
-        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
-        try { await JsonPipeFraming.WriteAsync(pipe, request, TaskAuthorityProtocol.Json, TaskAuthorityProtocol.MaxFrameBytes, ct).ConfigureAwait(false); }
-        finally { _writeLock.Release(); }
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(30));
-        using var treg = timeout.Token.Register(() => { if (_pending.TryRemove(request.RequestId, out var p) && !ct.IsCancellationRequested) p.TrySetException(new TimeoutException("Authority response timeout.")); });
-        try { return await tcs.Task.ConfigureAwait(false); }
+        try
+        {
+            await _writeLock.WaitAsync(ct).ConfigureAwait(false);
+            try { await JsonPipeFraming.WriteAsync(pipe, request, TaskAuthorityProtocol.Json, TaskAuthorityProtocol.MaxFrameBytes, ct).ConfigureAwait(false); }
+            finally { _writeLock.Release(); }
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            using var treg = timeout.Token.Register(() => { if (_pending.TryRemove(request.RequestId, out var p) && !ct.IsCancellationRequested) p.TrySetException(new TimeoutException("Authority response timeout.")); });
+            return await tcs.Task.ConfigureAwait(false);
+        }
         finally { _pending.TryRemove(request.RequestId, out _); }
     }
 
     public IAsyncEnumerable<AuthorityEvent> Events(CancellationToken cancellationToken = default) => _events.Reader.ReadAllAsync(cancellationToken);
 
-    private async Task ReadLoopAsync(NamedPipeClientStream pipe, CancellationToken ct)
+    private async Task ReadLoopAsync(NamedPipeClientStream pipe, Channel<AuthorityEvent> events, CancellationToken ct)
     {
         try
         {
@@ -95,7 +117,7 @@ public sealed class NamedPipeTaskAuthorityClient : ITaskAuthorityClient
                 }
                 else if (env.Event is { } evt)
                 {
-                    await _events.Writer.WriteAsync(evt, ct).ConfigureAwait(false);
+                    await events.Writer.WriteAsync(evt, ct).ConfigureAwait(false);
                 }
             }
         }
@@ -105,7 +127,9 @@ public sealed class NamedPipeTaskAuthorityClient : ITaskAuthorityClient
         {
             foreach (var kv in _pending) kv.Value.TrySetException(new IOException("Authority connection closed."));
             _pending.Clear();
-            _events.Writer.TryComplete();
+            // The stream belongs to one connection generation. Never complete
+            // a newer generation's event stream during an old reader's teardown.
+            events.Writer.TryComplete();
         }
     }
 
@@ -116,6 +140,7 @@ public sealed class NamedPipeTaskAuthorityClient : ITaskAuthorityClient
         try { _linkCts?.Cancel(); } catch { }
         if (_reader is not null) try { await _reader.ConfigureAwait(false); } catch { }
         try { _pipe?.Dispose(); } catch { }
+        _events.Writer.TryComplete();
         _linkCts?.Dispose();
         _linkCts = null; _reader = null; _pipe = null;
         foreach (var kv in _pending) kv.Value.TrySetException(new IOException("Disconnected."));
@@ -124,6 +149,8 @@ public sealed class NamedPipeTaskAuthorityClient : ITaskAuthorityClient
 
     public async ValueTask DisposeAsync()
     {
+        if (_disposed) return;
+        _disposed = true;
         await DisconnectCoreAsync().ConfigureAwait(false);
         _connectLock.Dispose();
         _writeLock.Dispose();
