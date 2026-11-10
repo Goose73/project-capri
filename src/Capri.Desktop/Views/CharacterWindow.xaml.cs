@@ -6,6 +6,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Capri.Core.Abstractions;
+using Capri.Core.Avatar;
 using Capri.Core.Models;
 using Capri.Desktop.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +33,8 @@ public partial class CharacterWindow : Window, IOverlayController
     private readonly IAppSettingsStore _settingsStore;
     private readonly ILogger<CharacterWindow> _logger;
     private readonly DispatcherTimer _saveDebounceTimer;
+    private readonly DispatcherTimer _gazeTimer;
+    private bool _gazeIsActive;
     private ChatPanelWindow? _chatPanel;
     private bool _allowClose;
     private bool _hasValidPosition;
@@ -59,6 +62,7 @@ public partial class CharacterWindow : Window, IOverlayController
         Avatar.State = _avatarPresentation.DisplayState;
         Avatar.ReduceMotion = _avatarPresentation.ReduceMotion;
         _avatarPresentation.PropertyChanged += AvatarPresentation_PropertyChanged;
+        _avatarPresentation.CueRequested += AvatarPresentation_CueRequested;
         _settingsStore.Changed += SettingsStore_Changed;
 
         _saveDebounceTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
@@ -66,6 +70,14 @@ public partial class CharacterWindow : Window, IOverlayController
             Interval = TimeSpan.FromMilliseconds(500)
         };
         _saveDebounceTimer.Tick += SaveDebounceTimer_Tick;
+
+        // Passive cursor polling only while Capri is visible. No mouse hooks,
+        // keystroke monitoring, screen capture, or persisted coordinates.
+        _gazeTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(80)
+        };
+        _gazeTimer.Tick += GazeTimer_Tick;
 
         SourceInitialized += OnSourceInitialized;
         IsVisibleChanged += OnIsVisibleChanged;
@@ -84,6 +96,42 @@ public partial class CharacterWindow : Window, IOverlayController
         {
             Dispatcher.BeginInvoke(() => Avatar.ReduceMotion = _avatarPresentation.ReduceMotion);
         }
+    }
+
+    private void AvatarPresentation_CueRequested(object? sender, AvatarCueEventArgs e)
+    {
+        if (!IsVisible) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (IsVisible) Avatar.PlayCue(e.Cue);
+        }, DispatcherPriority.Render);
+    }
+
+    private void GazeTimer_Tick(object? sender, EventArgs e)
+    {
+        if (!IsVisible || Avatar.ReduceMotion || _isDragging ||
+            (_chatPanel?.IsVisible != true &&
+             Avatar.State is not (AvatarState.Listening or AvatarState.Thinking or AvatarState.Talking)))
+        {
+            if (_gazeIsActive)
+            {
+                Avatar.ResetGaze();
+                _gazeIsActive = false;
+            }
+            return;
+        }
+
+        if (!GetCursorPos(out var cursor))
+            return;
+
+        // WPF PointToScreen uses physical desktop pixels just like GetCursorPos,
+        // so this remains DPI-safe on mixed-scale, multi-monitor configurations.
+        var center = Avatar.PointToScreen(
+            new Point(Avatar.ActualWidth * 0.5, Avatar.ActualHeight * 0.36));
+        var dx = (cursor.X - center.X) / 480.0;
+        var dy = (cursor.Y - center.Y) / 400.0;
+        Avatar.SetGaze(dx, dy);
+        _gazeIsActive = true;
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -116,9 +164,13 @@ public partial class CharacterWindow : Window, IOverlayController
             }
 
             ClampToCurrentMonitor();
+            _gazeTimer.Start();
         }
         else
         {
+            _gazeTimer.Stop();
+            _gazeIsActive = false;
+            Avatar.ResetGaze();
             // Hiding the companion hides the chat panel; tray toggle remains coherent.
             _saveDebounceTimer.Stop();
             _chatPanel?.Hide();
@@ -160,6 +212,9 @@ public partial class CharacterWindow : Window, IOverlayController
     {
         _saveDebounceTimer.Stop();
         _saveDebounceTimer.Tick -= SaveDebounceTimer_Tick;
+        _gazeTimer.Stop();
+        _gazeTimer.Tick -= GazeTimer_Tick;
+        _avatarPresentation.CueRequested -= AvatarPresentation_CueRequested;
         _settingsStore.Changed -= SettingsStore_Changed;
         _avatarPresentation.PropertyChanged -= AvatarPresentation_PropertyChanged;
     }
@@ -572,6 +627,10 @@ public partial class CharacterWindow : Window, IOverlayController
     }
 
     private const uint MONITOR_DEFAULTTONEAREST = 2;
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out POINT point);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
