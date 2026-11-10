@@ -99,22 +99,43 @@ public sealed partial class AmbientCompanionService : ObservableObject, IDisposa
             return false;
         }
 
+        CancellationTokenSource runCancellation;
         lock (_sync)
         {
             if (_disposed || _generation != generation || _runCancellation is not null)
                 return false;
-            _runCancellation = new CancellationTokenSource();
+            runCancellation = new CancellationTokenSource();
+            _runCancellation = runCancellation;
             _sessionConsented = true;
-            var runToken = _runCancellation.Token;
-            _runTask = Task.Run(() => RunLoopAsync(generation, settings, runToken));
         }
 
+        // The visible marker is set BEFORE any camera device is opened.
         OnUi(() =>
         {
             IsObserving = true;
             IsPaused = false;
             StatusText = "CAMERA ON — local snapshots only. Stop or pause anytime.";
         });
+        lock (_sync)
+        {
+            if (_generation != generation || !_sessionConsented)
+            {
+                runCancellation.Dispose();
+                return false;
+            }
+            _runTask = Task.Run(async () =>
+            {
+                try
+                {
+                    await RunLoopAsync(generation, settings, runCancellation.Token)
+                        .ConfigureAwait(false);
+                }
+                finally
+                {
+                    runCancellation.Dispose();
+                }
+            });
+        }
         return true;
     }
 
@@ -269,13 +290,8 @@ public sealed partial class AmbientCompanionService : ObservableObject, IDisposa
         {
             lock (_sync)
             {
-                // Only this run may release its own CTS; a new session never
-                // observes or reuses cancelled previous-session resources.
-                if (_generation == generation && _runCancellation is not null)
-                {
-                    _runCancellation.Dispose();
+                if (_generation == generation)
                     _runCancellation = null;
-                }
             }
         }
     }
