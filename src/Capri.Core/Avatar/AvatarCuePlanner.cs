@@ -72,6 +72,27 @@ public static class AvatarCuePlanner
                RequestVerbs.Any(lower.Contains);
     }
 
+    /// <summary>Explicit, local preview control; not an AI action or permission request.</summary>
+    public static AvatarCueKind PreviewCue(string? name) => name?.Trim().ToLowerInvariant() switch
+    {
+        "summon" or "appear" => AvatarCueKind.Summon,
+        "screen" or "turn" => AvatarCueKind.ScreenRequested,
+        "return" or "front" => AvatarCueKind.ReturnToUser,
+        "left" or "look-left" => AvatarCueKind.GlanceLeft,
+        "right" or "look-right" => AvatarCueKind.GlanceRight,
+        "look-around" or "scan" => AvatarCueKind.LookAround,
+        "nod" => AvatarCueKind.Nod,
+        "shake" => AvatarCueKind.Shake,
+        "hop" or "jump" => AvatarCueKind.Hop,
+        "lean" => AvatarCueKind.LeanIn,
+        "step-left" => AvatarCueKind.StepLeft,
+        "step-right" => AvatarCueKind.StepRight,
+        "wink" => AvatarCueKind.Wink,
+        "blink" => AvatarCueKind.Blink,
+        "speak" => AvatarCueKind.SpeakEmphasis,
+        _ => AvatarCueKind.None
+    };
+
     /// <summary>Maps actual visual states, not speculative AI text, to a short reaction.</summary>
     public static AvatarCueKind ForState(AvatarState state) => state switch
     {
