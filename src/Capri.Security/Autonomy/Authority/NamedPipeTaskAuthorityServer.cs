@@ -253,7 +253,8 @@ public sealed class NamedPipeTaskAuthorityServer : IAsyncDisposable
                         _pendingApprovalTcs?.TrySetResult(null);
                         _pendingApprovalTcs = null;
                         _pendingApproval = null;
-                        try { _activeTaskCts?.Cancel(); } catch (ObjectDisposedException) { }
+                        // Coordinator.Stop cancels the active run; avoid invoking
+                        // cancellation callbacks while holding the authority lock.
                     }
                     BroadcastState();
                     return Ok(req, GetStateSnapshot());
