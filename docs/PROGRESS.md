@@ -1,5 +1,11 @@
 # Development progress
 
+## 2026-11-10 — OpenCode capability research and Capri motion foundation (PR pending)
+
+Researched current official OpenCode feature documentation (shared user service, desktop/TUI/CLI/SDK, coding tools, sessions, agents, model providers including ChatGPT account sign-in, local runtimes, worktrees, permissions, extensions, compaction, browser and remote pairing). Added a GUI-first Capri-native capability gap assessment and security-gated milestones in `docs/OPENCODE-CAPABILITY-ROADMAP.md`. Investigated Capri's depiction as an effect-like digital character in `Cyberpunk: Edgerunners 2` using 2026 production interviews and reviews; preserved the existing private artwork policy and created `docs/CAPRI-ANIMATION-DIRECTION.md` with an event-driven clip library and safety constraints.
+
+Added `AvatarMotionPlanner` with distinct bounded motion profiles, WPF whole-sprite idle/attend/scan/speak/celebrate/disagree/react movement, and a brief image arrival reveal (only for real sprites). Reduced-motion and missing-artwork placeholder remain nonanimated. New deterministic motion-profile tests included. **Not implemented:** full rigged animations, independent eyes/mouth/limbs, genuine wake-word detection, screen vision, interactive developer TUI or broad OpenCode feature parity. Visual/manual Windows acceptance and CI are pending. Exact-plan approval and emergency stop were not relaxed.
+
 ## 2026-11-10 — M5 authority state/stream isolation (PR #20, refreshed; verification pending)
 
 Preserve the last authoritative desktop snapshot when an event omits `State` rather than clearing the displayed task/stop status. Harden the desktop submission watcher to accept progress and completion **only** for its exact task ID: an unrelated event or an omitted task ID must not silently end or impersonate the watched task. Add deterministic regression coverage for both missing state and foreign/missing task IDs, in addition to existing hosted desktop/CLI denial and stop tests. Production exact-plan approval binding, emergency-stop and no-replay enforcement remain unchanged. Windows CI and live supervised M4/M5 acceptance are separate verification gates.
