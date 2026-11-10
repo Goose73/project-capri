@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using Capri.Core.Avatar;
 using Capri.Core.Models;
 
 namespace Capri.Desktop.Controls;
@@ -23,16 +24,22 @@ public partial class AvatarControl : UserControl
         new PropertyMetadata(false, OnStateChanged));
 
     private Storyboard? _idleMotion;
+    private Storyboard? _arrivalMotion;
 
     public AvatarControl()
     {
         InitializeComponent();
-        Loaded += (_, _) => Refresh();
+        Loaded += (_, _) =>
+        {
+            Refresh();
+            PlayArrivalMotion();
+        };
         IsVisibleChanged += (_, e) =>
         {
             if (e.NewValue is true)
             {
                 Refresh();
+                PlayArrivalMotion();
             }
             else
             {
@@ -93,51 +100,83 @@ public partial class AvatarControl : UserControl
     private void ApplyLightweightMotion()
     {
         StopMotion();
-        if (ReduceMotion || State == AvatarState.Sleep)
-        {
-            MotionTranslate.Y = State == AvatarState.Sleep ? 2 : 0;
-            MotionScale.ScaleX = 1;
-            MotionScale.ScaleY = 1;
-            MotionRotate.Angle = State == AvatarState.Sleep ? 3 : 0;
-            return;
-        }
-
-        // Avoid unnecessary animation work when not visible.
-        if (!IsVisible)
-        {
-            MotionTranslate.Y = 0;
-            MotionScale.ScaleX = 1;
-            MotionScale.ScaleY = 1;
-            MotionRotate.Angle = 0;
-            return;
-        }
-
+        MotionTranslate.X = 0;
+        MotionTranslate.Y = 0;
+        MotionScale.ScaleX = 1;
+        MotionScale.ScaleY = 1;
         MotionRotate.Angle = 0;
-        var sb = new Storyboard { RepeatBehavior = RepeatBehavior.Forever, AutoReverse = true };
-        var bob = new DoubleAnimation
+
+        var profile = AvatarMotionPlanner.ForState(State, ReduceMotion);
+        // Do not animate the missing-artwork notice. The original character
+        // requires approved artwork, not geometry drawn to impersonate it.
+        if (!profile.Animated || !IsVisible || AvatarImage.Visibility != Visibility.Visible)
+            return;
+
+        var duration = TimeSpan.FromMilliseconds(profile.HalfCycleMilliseconds);
+        var storyboard = new Storyboard
         {
-            From = 0,
-            To = State switch
-            {
-                AvatarState.Talking => -1.5,
-                AvatarState.Happy or AvatarState.Success => -3,
-                AvatarState.Surprised => -6,
-                AvatarState.Annoyed or AvatarState.Error => -1,
-                _ => -2
-            },
-            Duration = TimeSpan.FromMilliseconds(State == AvatarState.Talking ? 180 : 1400)
+            RepeatBehavior = RepeatBehavior.Forever,
+            AutoReverse = true
         };
-        Storyboard.SetTarget(bob, MotionTranslate);
-        Storyboard.SetTargetProperty(bob, new PropertyPath(TranslateTransform.YProperty));
-        sb.Children.Add(bob);
-        _idleMotion = sb;
-        sb.Begin();
+        AddMotion(storyboard, MotionTranslate, TranslateTransform.YProperty,
+            0, profile.BobPixels, duration);
+        AddMotion(storyboard, MotionTranslate, TranslateTransform.XProperty,
+            -profile.SwayPixels, profile.SwayPixels, duration);
+        AddMotion(storyboard, MotionRotate, RotateTransform.AngleProperty,
+            -profile.TiltDegrees, profile.TiltDegrees, duration);
+        AddMotion(storyboard, MotionScale, ScaleTransform.ScaleYProperty,
+            1, profile.StretchY, duration);
+
+        _idleMotion = storyboard;
+        storyboard.Begin();
+    }
+
+    private void PlayArrivalMotion()
+    {
+        if (!IsVisible || ReduceMotion || AvatarImage.Visibility != Visibility.Visible)
+        {
+            SpriteHost.Opacity = 1;
+            return;
+        }
+
+        // A small reveal is possible with a single sprite. The full
+        // Capri effect-entity emergence needs separately licensed art.
+        _arrivalMotion?.Stop();
+        var duration = TimeSpan.FromMilliseconds(340);
+        var storyboard = new Storyboard();
+        AddMotion(storyboard, SpriteHost, UIElement.OpacityProperty, 0, 1, duration);
+        AddMotion(storyboard, MotionScale, ScaleTransform.ScaleXProperty, 0.91, 1, duration);
+        _arrivalMotion = storyboard;
+        storyboard.Begin();
+    }
+
+    private static void AddMotion(
+        Storyboard storyboard,
+        DependencyObject target,
+        DependencyProperty property,
+        double from,
+        double to,
+        TimeSpan duration)
+    {
+        var animation = new DoubleAnimation
+        {
+            From = from,
+            To = to,
+            Duration = duration,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+        };
+        Storyboard.SetTarget(animation, target);
+        Storyboard.SetTargetProperty(animation, new PropertyPath(property));
+        storyboard.Children.Add(animation);
     }
 
     private void StopMotion()
     {
         try { _idleMotion?.Stop(); } catch { }
+        try { _arrivalMotion?.Stop(); } catch { }
         _idleMotion = null;
+        _arrivalMotion = null;
+        SpriteHost.Opacity = 1;
     }
 
     private static BitmapImage LoadImage(string path)
