@@ -45,6 +45,32 @@ public sealed class DesktopTaskAuthorityServiceTests
     }
 
     [Fact]
+    public async Task HostingDesktopService_KeepsLastAuthoritativeStateWhileTaskEventsArrive()
+    {
+        await using var fx = await DesktopAuthorityFixture.CreateAsync("""{"steps":[{"tool":"launch_app","target":"notepad"}]}""");
+        var bridge = new FakeUiBridge(_ => new AuthorityApprovalDecision(false, null));
+        var service = fx.CreateService(bridge);
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await WaitUntilAsync(() => service.LastState is not null, TimeSpan.FromSeconds(10));
+            await using var cli = new NamedPipeTaskAuthorityClient(fx.PipeName, "cli-state-test", canApprove: false, connectTimeout: TimeSpan.FromSeconds(5));
+            await cli.EnsureConnectedAsync();
+            var submit = await cli.SendAsync(new AuthorityRequest("state-submit", AuthorityRequestKind.SubmitTask, Goal: "inspect state"));
+            Assert.True(submit.Ok);
+            var terminal = await WaitTerminalViaClientAsync(cli, submit.Task!.TaskId, TimeSpan.FromSeconds(20));
+            Assert.NotNull(terminal);
+            // The desktop should not lose its last authoritative state when progress
+            // and task-completion notifications are interleaved with state updates.
+            Assert.NotNull(service.LastState);
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task HostingDesktopService_UiDenialFailsTaskWithoutExecution()
     {
         var executor = Substitute.For<ITaskExecutor>();
