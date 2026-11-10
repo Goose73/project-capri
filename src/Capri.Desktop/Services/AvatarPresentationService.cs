@@ -41,6 +41,17 @@ public sealed partial class AvatarPresentationService : ObservableObject, IDispo
         });
     }
 
+    /// <summary>Explicit local animation preview. No task, tool or microphone activity.</summary>
+    public void PreviewCue(AvatarCueKind cue)
+    {
+        if (_disposed || cue == AvatarCueKind.None) return;
+        _dispatcher.Invoke(() =>
+        {
+            if (!_disposed)
+                CueRequested?.Invoke(this, new AvatarCueEventArgs(cue));
+        });
+    }
+
     /// <summary>Turn back when the submitted request has ended or was cancelled.</summary>
     public void FinishUserPrompt()
     {
