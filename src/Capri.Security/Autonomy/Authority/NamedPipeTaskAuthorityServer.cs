@@ -223,7 +223,7 @@ public sealed class NamedPipeTaskAuthorityServer : IAsyncDisposable
                     return await SubmitTaskAsync(req, ct).ConfigureAwait(false);
                 case AuthorityRequestKind.Approve:
                 case AuthorityRequestKind.Deny:
-                    return ResolveApproval(req);
+                    return ResolveApproval(conn, req);
                 case AuthorityRequestKind.CancelTask:
                     return CancelActiveTask(req);
                 case AuthorityRequestKind.Stop:
@@ -320,17 +320,22 @@ public sealed class NamedPipeTaskAuthorityServer : IAsyncDisposable
         }
     }
 
-    private AuthorityResponse ResolveApproval(AuthorityRequest req)
+    private AuthorityResponse ResolveApproval(ClientConnection conn, AuthorityRequest req)
     {
-        if (req.TaskId is null || string.IsNullOrWhiteSpace(req.PlanHash))
-            return Fail(req, "taskId and planHash required.");
+        // A subscriber or task watcher cannot act as an approval UI merely by
+        // sending an Approve frame. This is a declared client capability, not
+        // a security boundary against other processes owned by the same user.
+        if (!conn.CanApprove)
+            return Fail(req, "Client did not register approval capability.");
+        if (req.TaskId is null || req.ApprovalId is null || req.ApprovalId == Guid.Empty || string.IsNullOrWhiteSpace(req.PlanHash))
+            return Fail(req, "taskId, approvalId and planHash required.");
         lock (_stateSync)
         {
             var pending = _pendingApproval;
             var tcs = _pendingApprovalTcs;
             if (pending is null || tcs is null || pending.TaskId != req.TaskId.Value)
                 return Fail(req, "No matching pending approval.");
-            if (req.ApprovalId is not null && req.ApprovalId.Value != pending.ApprovalId)
+            if (req.ApprovalId.Value != pending.ApprovalId)
                 return Fail(req, "Approval id does not match pending request.");
             if (!string.Equals(pending.PlanHash, req.PlanHash, StringComparison.Ordinal))
                 return Fail(req, "Approval plan hash does not match pending request.");
