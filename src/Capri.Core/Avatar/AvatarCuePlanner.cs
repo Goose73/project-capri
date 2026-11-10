@@ -37,7 +37,7 @@ public static class AvatarCuePlanner
 {
     private static readonly string[] ScreenReferences =
     [
-        "my screen", "the screen", "this screen", "on screen", "my monitor",
+        "my screen", "me screen", "the screen", "this screen", "on screen", "my monitor",
         "this monitor", "my display", "this display", "my desktop",
         "this window", "my window", "what's on my screen", "screenshot"
     ];
