@@ -1,5 +1,11 @@
 # Development progress
 
+## 2026-11-10 — Ambient Companion live Windows webcam integration (PR #30)
+
+Implemented the first end-to-end Windows camera and local-vision pipeline. The user explicitly enables the preference, presses Start and confirms a fresh session in Capri chat. OpenCvSharp DirectShow samples bounded webcam JPEGs into memory (no video recording), `LocalOllamaAmbientVision` checks installed models and sends images only to `127.0.0.1:11434` with no proxy or redirects. Short model-generated remarks can appear in Capri chat, and separately opted-in remarks can be spoken through offline Windows SAPI. Added start/pause/resume/stop controls, visible CAM ON badge on the character, session-lock and settings-change revocation, cancellation, bounded model responses, quiet cooldown and unit tests. Webcam stays disabled and never auto-starts from saved settings.
+
+**Acceptance:** Automated Windows CI checks exercise test doubles only; no live camera or model inference acceptance has been performed. Before marking this production-ready, verify a real webcam, Windows camera permissions, packaging/native library dependencies, local Ollama vision capability, voice output and GPU load while gaming. See [Ambient Companion guide](AMBIENT-COMPANION.md). This is independent of the already removed Raspberry Pi Hub. Animation work in another branch remains separate.
+
 ## 2026-11-10 — Opt-in ambient companion vision policy foundation
 
 Added `AppSettings.AmbientVision` (disabled by default; no camera activation), a pure `AmbientVisionPolicy` enforcing fresh in-memory webcam consent, Windows permission, an on-screen active-camera indicator, local-only image inference, lock/pause and in-flight suppression, plus bounded frame sampling and optional commentary cooldown. Unit tests verify default-off behavior and strict restrictions. Detailed design and acceptance requirements in [docs/AMBIENT-COMPANION.md](AMBIENT-COMPANION.md).
