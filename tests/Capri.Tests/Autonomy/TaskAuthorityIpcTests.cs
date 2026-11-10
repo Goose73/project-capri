@@ -70,6 +70,96 @@ public sealed class TaskAuthorityIpcTests
     }
 
     [Fact]
+    public async Task ApprovalRequiresExactNonEmptyApprovalIdAndCannotBeReplayed()
+    {
+        var executor = Substitute.For<ITaskExecutor>();
+        executor.ExecuteAsync(Arg.Any<TaskStep>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new TaskOutcome(true, false, "dispatched"));
+
+        await using var fx = await AuthorityFixture.CreateAsync(
+            planJson: """{"steps":[{"tool":"launch_app","target":"notepad"}]}""", executor: executor);
+        await using var client = fx.CreateClient("approver");
+        await client.EnsureConnectedAsync();
+        var submit = await client.SendAsync(Req(AuthorityRequestKind.SubmitTask, goal: "binding"));
+        Assert.True(submit.Ok);
+        var taskId = submit.Task!.TaskId;
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        ApprovalRequestSnapshot? approval = null;
+        await foreach (var evt in client.Events(cts.Token))
+        {
+            if (evt.Approval?.TaskId == taskId) { approval = evt.Approval; break; }
+        }
+        Assert.NotNull(approval);
+
+        var missing = await client.SendAsync(new AuthorityRequest("missing", AuthorityRequestKind.Approve,
+            TaskId: taskId, PlanHash: approval!.PlanHash), cts.Token);
+        Assert.False(missing.Ok);
+        Assert.Contains("approvalId", missing.Error ?? "", StringComparison.OrdinalIgnoreCase);
+
+        var empty = await client.SendAsync(new AuthorityRequest("empty", AuthorityRequestKind.Approve,
+            TaskId: taskId, ApprovalId: Guid.Empty, PlanHash: approval.PlanHash), cts.Token);
+        Assert.False(empty.Ok);
+
+        var wrong = await client.SendAsync(new AuthorityRequest("wrong", AuthorityRequestKind.Approve,
+            TaskId: taskId, ApprovalId: Guid.NewGuid(), PlanHash: approval.PlanHash), cts.Token);
+        Assert.False(wrong.Ok);
+
+        var state = await client.SendAsync(Req(AuthorityRequestKind.GetState), cts.Token);
+        Assert.Equal(approval.ApprovalId, state.State?.PendingApproval?.ApprovalId);
+        await executor.DidNotReceiveWithAnyArgs().ExecuteAsync(default!, default, default);
+
+        var deny = await client.SendAsync(new AuthorityRequest("deny", AuthorityRequestKind.Deny,
+            TaskId: taskId, ApprovalId: approval.ApprovalId, PlanHash: approval.PlanHash), cts.Token);
+        Assert.True(deny.Ok);
+        Assert.Equal("Cancelled", await WaitTerminalAsync(client, taskId, cts.Token));
+
+        var replay = await client.SendAsync(new AuthorityRequest("replay", AuthorityRequestKind.Approve,
+            TaskId: taskId, ApprovalId: approval.ApprovalId, PlanHash: approval.PlanHash), cts.Token);
+        Assert.False(replay.Ok);
+        await executor.DidNotReceiveWithAnyArgs().ExecuteAsync(default!, default, default);
+    }
+
+    [Fact]
+    public async Task ReadOnlySubscriberCannotApproveOrDenyPendingTask()
+    {
+        await using var fx = await AuthorityFixture.CreateAsync(
+            planJson: """{"steps":[{"tool":"launch_app","target":"notepad"}]}""");
+        await using var approver = fx.CreateClient("approver");
+        await using var observer = new NamedPipeTaskAuthorityClient(fx.PipeName, "observer",
+            canApprove: false, connectTimeout: TimeSpan.FromSeconds(3));
+        await approver.EnsureConnectedAsync();
+        await observer.EnsureConnectedAsync();
+
+        var submit = await approver.SendAsync(Req(AuthorityRequestKind.SubmitTask, goal: "observe only"));
+        Assert.True(submit.Ok);
+        var taskId = submit.Task!.TaskId;
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        ApprovalRequestSnapshot? approval = null;
+        await foreach (var evt in approver.Events(cts.Token))
+        {
+            if (evt.Approval?.TaskId == taskId) { approval = evt.Approval; break; }
+        }
+        Assert.NotNull(approval);
+
+        foreach (var kind in new[] { AuthorityRequestKind.Approve, AuthorityRequestKind.Deny })
+        {
+            var denied = await observer.SendAsync(new AuthorityRequest(Guid.NewGuid().ToString("N"), kind,
+                TaskId: taskId, ApprovalId: approval!.ApprovalId, PlanHash: approval.PlanHash), cts.Token);
+            Assert.False(denied.Ok);
+            Assert.Contains("capability", denied.Error ?? "", StringComparison.OrdinalIgnoreCase);
+        }
+
+        var state = await approver.SendAsync(Req(AuthorityRequestKind.GetState), cts.Token);
+        Assert.Equal(approval!.ApprovalId, state.State?.PendingApproval?.ApprovalId);
+        var validDeny = await approver.SendAsync(new AuthorityRequest("valid-deny", AuthorityRequestKind.Deny,
+            TaskId: taskId, ApprovalId: approval.ApprovalId, PlanHash: approval.PlanHash), cts.Token);
+        Assert.True(validDeny.Ok);
+        Assert.Equal("Cancelled", await WaitTerminalAsync(approver, taskId, cts.Token));
+    }
+
+    [Fact]
     public async Task ConcurrentSecondSubmitRejectedWhileTaskActive()
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
