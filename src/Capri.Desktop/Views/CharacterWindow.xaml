@@ -30,5 +30,13 @@
                                 MouseLeftButtonDown="Avatar_MouseLeftButtonDown"
                                 MouseLeftButtonUp="Avatar_MouseLeftButtonUp"
                                 MouseMove="Avatar_MouseMove"/>
+        <Border x:Name="WebcamActiveBadge" Visibility="Collapsed"
+                HorizontalAlignment="Right" VerticalAlignment="Top"
+                Margin="0,5,6,0" Padding="7,4"
+                BorderBrush="#FF00FF65" BorderThickness="1"
+                Background="#EE101015" CornerRadius="6"
+                ToolTip="Webcam awareness is enabled. Click Capri to open chat and pause or stop.">
+            <TextBlock Foreground="#FF00FF65" FontSize="10" FontWeight="Bold" Text="● CAM ON"/>
+        </Border>
     </Grid>
 </Window>
