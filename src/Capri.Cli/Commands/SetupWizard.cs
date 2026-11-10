@@ -126,7 +126,7 @@ public sealed class SetupWizard
         _console.WriteLine("Nothing will be installed just by opening this wizard.");
         _console.WriteLine("This wizard configures local/shared settings. Secrets are never displayed.");
         _console.WriteLine("Local AI (Ollama) does not require an API key. Cloud consent is never enabled silently.");
-        _console.WriteLine("Type 's' to skip optional steps or 'c' to cancel. Back navigation is not available in this terminal wizard.");
+        _console.WriteLine("Use 's' (or 'b') to skip where offered and 'c' to cancel. Back navigation is not supported.");
         _console.WriteLine(string.Empty);
     }
 
