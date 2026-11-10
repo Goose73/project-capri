@@ -1,4 +1,5 @@
 using Capri.Core.Abstractions;
+using Capri.Core.Avatar;
 using Capri.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,36 @@ public sealed partial class AvatarPresentationService : ObservableObject, IDispo
     private readonly object _timerSync = new();
     private CancellationTokenSource? _dwellCts;
     private bool _disposed;
+    private bool _screenRequestPending;
+
+    /// <summary>UI-only request, never proof that any screen was inspected.</summary>
+    public event EventHandler<AvatarCueEventArgs>? CueRequested;
+
+    /// <summary>Animate attention toward a display only for an explicit user request.</summary>
+    public void ObserveUserPrompt(string? prompt)
+    {
+        if (_disposed || !AvatarCuePlanner.RequestsScreenAttention(prompt))
+            return;
+
+        _dispatcher.Invoke(() =>
+        {
+            if (_disposed) return;
+            _screenRequestPending = true;
+            CueRequested?.Invoke(this, new AvatarCueEventArgs(AvatarCueKind.ScreenRequested));
+        });
+    }
+
+    /// <summary>Turn back when the submitted request has ended or was cancelled.</summary>
+    public void FinishUserPrompt()
+    {
+        if (_disposed) return;
+        _dispatcher.Invoke(() =>
+        {
+            if (_disposed || !_screenRequestPending) return;
+            _screenRequestPending = false;
+            CueRequested?.Invoke(this, new AvatarCueEventArgs(AvatarCueKind.ReturnToUser));
+        });
+    }
 
     /// <summary>Current visual state for binding.</summary>
     [ObservableProperty]
@@ -134,6 +165,7 @@ public sealed partial class AvatarPresentationService : ObservableObject, IDispo
 
         _disposed = true;
         CancelDwell();
+        _screenRequestPending = false;
         _stateMachine.StateChanged -= OnStateChanged;
         _settingsStore.Changed -= OnSettingsChanged;
         GC.SuppressFinalize(this);
