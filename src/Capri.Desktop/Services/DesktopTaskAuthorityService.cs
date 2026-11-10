@@ -189,7 +189,10 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
         {
             lock (_sync)
             {
-                _lastState = evt.State;
+                // Progress-only events may omit a state snapshot. Retain the last
+                // authoritative snapshot until the server supplies a newer one.
+                if (evt.State is { } updatedState)
+                    _lastState = updatedState;
                 if (_pendingApprovalCancellation is not null && evt.State is { } state &&
                     (state.Stopped || state.ActiveTask?.TaskId != _pendingApprovalTaskId))
                     _pendingApprovalCancellation.Cancel();
