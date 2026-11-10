@@ -30,7 +30,10 @@ public sealed class SetupWizardTests
         var exitCode = await fixture.RunAsync(repair: false);
 
         Assert.Equal(CliExitCodes.Success, exitCode);
-        Assert.Contains("Hardware detection", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("guide you through setup", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Check what your computer can handle", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Find your local AI service", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Test your AI connection", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Local provider detection", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Model recommendation", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Inference test", fixture.Console.Out, StringComparison.OrdinalIgnoreCase);
