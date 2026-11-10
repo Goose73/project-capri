@@ -33,7 +33,7 @@ public sealed class ModelsCommandTests
         using var fixture = new ModelsFixture(
             models: [new OllamaModelInfo { Name = "qwen3.5:4b", Size = 1 }]);
 
-        var exitCode = await fixture.RunAsync(CliParser.Parse(["models", "recommend", "--json"]));
+        var exitCode = await fixture.RunAsync(CliParser.Parse(["models", "recommend", "--json", "--yes"]));
 
         Assert.Equal(CliExitCodes.Success, exitCode);
         using var doc = JsonDocument.Parse(fixture.Console.Out);
@@ -44,6 +44,50 @@ public sealed class ModelsCommandTests
         Assert.Contains(candidates, c => c.GetProperty("name").GetString() == "gemma3:4b");
         Assert.Contains(candidates, c => c.GetProperty("name").GetString() == "qwen3.5:2b");
         Assert.True(doc.RootElement.GetProperty("hardware").GetProperty("estimates").GetBoolean());
+    }
+
+    [Fact]
+    public async Task RecommendWithoutConsentInNonInteractiveModeReturnsJsonErrorBeforeAnyQuery()
+    {
+        using var fixture = new ModelsFixture(interactive: false);
+        fixture.Ollama.ThrowOnList = new InvalidOperationException("Should not query Ollama without consent");
+
+        var code = await fixture.RunAsync(CliParser.Parse(["models", "recommend", "--json"]));
+
+        Assert.Equal(CliExitCodes.Usage, code);
+        using var doc = JsonDocument.Parse(fixture.Console.Out);
+        Assert.False(doc.RootElement.GetProperty("ok").GetBoolean());
+        Assert.Equal("hardware_consent_required",
+            doc.RootElement.GetProperty("error").GetProperty("code").GetString());
+        Assert.DoesNotContain("CPU logical cores:", fixture.Console.Out);
+    }
+
+    [Fact]
+    public async Task RecommendInteractiveDenialDoesNotInspectHardwareOrQueryModels()
+    {
+        using var fixture = new ModelsFixture(interactive: true, input: ["n"]);
+        fixture.Ollama.ThrowOnList = new InvalidOperationException("Unexpected Ollama query");
+
+        var code = await fixture.RunAsync(CliParser.Parse(["models", "recommend"]));
+
+        Assert.Equal(CliExitCodes.Usage, code);
+        Assert.Contains("Allow local hardware inspection?", fixture.Console.Out);
+        Assert.Contains("no hardware-based recommendations", fixture.Console.Error,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("crashes", fixture.Console.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RecommendInteractiveJsonConsentKeepsStandardOutputValidJson()
+    {
+        using var fixture = new ModelsFixture(interactive: true, input: ["y"]);
+
+        var code = await fixture.RunAsync(CliParser.Parse(["models", "recommend", "--json"]));
+
+        Assert.Equal(CliExitCodes.Success, code);
+        using var doc = JsonDocument.Parse(fixture.Console.Out);
+        Assert.True(doc.RootElement.GetProperty("candidates").GetArrayLength() > 0);
+        Assert.Contains("Allow local hardware inspection?", fixture.Console.Error);
     }
 
     [Fact]
@@ -113,7 +157,8 @@ public sealed class ModelsCommandTests
         public ModelsFixture(
             IReadOnlyList<OllamaModelInfo>? models = null,
             IReadOnlyList<OllamaPullProgress>? pullProgress = null,
-            bool interactive = false)
+            bool interactive = false,
+            IEnumerable<string?>? input = null)
         {
             _temp = new TempDirectory();
             Ollama = new StubOllamaClient
@@ -133,7 +178,7 @@ public sealed class ModelsCommandTests
                     },
                 }),
                 ollamaClient: Ollama);
-            Console = new FakeCliConsole(interactive: interactive);
+            Console = new FakeCliConsole(input, interactive);
             Application = new CliApplication(
                 Console,
                 Services,

@@ -1,8 +1,20 @@
 # Development progress
 
-## 2026-11-10 — M5 desktop authority state retention (PR pending CI)
+## 2026-11-10 — M5 authority state/stream isolation (PR #20, refreshed; verification pending)
 
-The WPF authority event loop now preserves the last server-provided state snapshot when a progress-only or completion event omits `State`. Previously, a null event snapshot overwrote the cached state, potentially hiding active-task and emergency-stop status in the desktop. Added a hosted desktop/CLI regression test exercising task events and verifying a retained state. This does not change server-side approval binding, emergency-stop semantics, or authorization; Windows CI and supervised acceptance are still required. No Raspberry Pi Hub.
+Preserve the last authoritative desktop snapshot when an event omits `State` rather than clearing the displayed task/stop status. Harden the desktop submission watcher to accept progress and completion **only** for its exact task ID: an unrelated event or an omitted task ID must not silently end or impersonate the watched task. Add deterministic regression coverage for both missing state and foreign/missing task IDs, in addition to existing hosted desktop/CLI denial and stop tests. Production exact-plan approval binding, emergency-stop and no-replay enforcement remain unchanged. Windows CI and live supervised M4/M5 acceptance are separate verification gates.
+
+## 2026-11-10 — Standalone model recommendation permission gate (PR pending)
+
+Audited the CLI, Ollama, onboarding, cloud-consent guards and M5 authority paths against current master and GitHub Actions. Discovered that `capri models recommend` bypassed the explicit hardware-inspection permission used by `capri setup`. Now the standalone recommendation command asks first, refuses non-interactive/JSON requests without an explicit `--yes`, and does not run hardware probes or even query Ollama when declined. Interactive JSON consent messages go to stderr to keep stdout machine-readable. Removed the unconditional RTX 3050-specific recommendation language from the standalone and setup recommendations; clarified that the terminal wizard has no backwards navigation and corrected cancellation copy to acknowledge any previously saved settings. Added opt-in, denial, scripted-mode and JSON regressions. Existing explicit model-download confirmation and task-approval rules are unchanged. Windows CI and actual hardware acceptance are still required. Separate finding: the previously merged hardware-fit InlineData tests caused two Windows CI test failures; fixed in merged PR #22 (622/622 tests passed on PR CI run 42803405389).
+
+## 2026-11-10 — Guided first-run explanations (CI pending)
+
+Improved CLI setup wording for beginners: each of the hardware, local-provider, model selection, and inference-test stages now explains what it does, why it matters, and what is optional. Setup still asks before running Windows hardware inspection or downloading a model, and cloud inference retains its separate consent gate. Added guidance assertions to the setup integration tests. This is a CLI guidance increment, **not yet a complete graphical onboarding flow**, and must pass Windows CI before merging.
+
+## 2026-11-10 — Ollama hardware recommendation confidence (PR pending)
+
+Setup now asks for explicit opt-in before running local Windows hardware inspection commands. Declining skips hardware probes, suppresses recommendation choices and model downloads in the wizard, warns about out-of-memory crashes, and still allows manual selection of an already-installed model. Added consent regression coverage. Replaced process-level GC memory limit with a best-effort Windows CIM physical-RAM reading in `capri models recommend`. Removed an unsafe RTX 3050 name-to-6GB VRAM assumption (different variants exist); unknown RAM or VRAM now yields an explicit unknown fit rather than a confident 4B recommendation. Applied the same conservative fit to Phi/Gemma 4B options and added deterministic fit tests. Detection remains best-effort and read-only; no model downloads or device actions occur. Windows CI and actual hardware validation pending. ChatGPT subscription sign-in is **not implemented** by this change; it requires a documented, authorized integration, not an API-key substitute or cookie scraping.
 
 ## 2026-11-10 — Task-watch parser test analyzer cleanup (verification pending)
 

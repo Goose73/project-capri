@@ -43,7 +43,7 @@ public sealed class ModelsCommand
         return subcommand switch
         {
             "list" => await ListAsync(invocation.Json, cancellationToken).ConfigureAwait(false),
-            "recommend" => await RecommendAsync(invocation.Json, cancellationToken).ConfigureAwait(false),
+            "recommend" => await RecommendAsync(invocation.Json, invocation.Yes, cancellationToken).ConfigureAwait(false),
             "pull" => await PullAsync(GetModelArg(invocation), invocation.Yes, invocation.Json, cancellationToken).ConfigureAwait(false),
             "use" => await UseAsync(GetModelArg(invocation), invocation.Json, cancellationToken).ConfigureAwait(false),
             _ => Usage("Unknown models command. Use list, recommend, pull, or use."),
@@ -149,8 +149,33 @@ public sealed class ModelsCommand
         return CliExitCodes.Success;
     }
 
-    private async Task<int> RecommendAsync(bool json, CancellationToken cancellationToken)
+    private async Task<int> RecommendAsync(bool json, bool consentGranted, CancellationToken cancellationToken)
     {
+        // Never execute the Windows hardware probes before the user permits it.
+        // --yes represents explicit authorization for non-interactive callers.
+        if (!consentGranted)
+        {
+            if (!_console.IsInteractive)
+                return HardwareConsentRequired(json);
+
+            const string explanation =
+                "Capri can run read-only Windows commands to inspect CPU, physical RAM, GPU/VRAM, and disk space. " +
+                "Results stay on this PC. Without permission, Capri cannot recommend models for your hardware. " +
+                "An oversized model can exhaust memory, cause slowdowns, or crash applications.";
+            if (json)
+            {
+                _console.WriteErrorLine(explanation);
+                _console.WriteErrorLine("Allow local hardware inspection? [y/N]:");
+            }
+            else
+            {
+                _console.WriteLine(explanation);
+                _console.Write("Allow local hardware inspection? [y/N]: ");
+            }
+            if (!IsYes(_console.ReadLine()))
+                return HardwareConsentRequired(json);
+        }
+
         var hardware = HardwareInfo.Detect();
         var ollamaBaseUrl = GetOllamaBaseUrl();
         IReadOnlyList<OllamaModelInfo> installed = [];
@@ -431,6 +456,18 @@ public sealed class ModelsCommand
         return CliExitCodes.Success;
     }
 
+    private int HardwareConsentRequired(bool json)
+    {
+        const string message =
+            "Hardware inspection not authorized; no hardware-based recommendations were generated. " +
+            "Run interactively and approve the inspection, or pass --yes to explicitly allow read-only hardware checks. " +
+            "Without hardware recommendations, a model may exceed your PC's memory and cause crashes.";
+        if (json)
+            return JsonError("hardware_consent_required", message);
+        _console.WriteErrorLine($"capri: {message}");
+        return CliExitCodes.Usage;
+    }
+
     private int ReportLocalApiFailure(string action, Exception exception, bool json)
     {
         var root = OllamaClient.GetApiRoot(GetOllamaBaseUrl());
@@ -459,7 +496,7 @@ public sealed class ModelsCommand
     private int JsonError(string code, string message, object? details = null)
     {
         _console.WriteLine(JsonOutput.Serialize(new { ok = false, error = new { code, message, details } }));
-        return code == "confirmation_required" || code == "invalid_model" ? CliExitCodes.Usage : CliExitCodes.Error;
+        return code is "confirmation_required" or "hardware_consent_required" or "invalid_model" ? CliExitCodes.Usage : CliExitCodes.Error;
     }
 
     private static bool TryValidateModelName(string? value, out string error)
@@ -579,11 +616,7 @@ public sealed class ModelsCommand
 
     private static IReadOnlyList<RecommendedModel> GetRecommendedCandidates(HardwareInfo hardware)
     {
-        var has6GbVramClass = hardware.VramGbEstimate >= 5.5 || (hardware.GpuName?.Contains("3050", StringComparison.OrdinalIgnoreCase) == true);
-        var has16GbRam = hardware.RamGb >= 14;
-        var fit4b = has6GbVramClass && has16GbRam
-            ? "good fit (4B Q4 class; 6GB VRAM / 16GB RAM target)"
-            : "possible with tuning; verify VRAM/RAM";
+        var fit4b = ModelHardwareFit.ForFourB(hardware.RamGb, hardware.VramGbEstimate);
 
         return
         [
@@ -593,7 +626,7 @@ public sealed class ModelsCommand
                 "4096 (initial)",
                 "vision, tools, strong general chat (capability depends on runtime/model build)",
                 fit4b,
-                "Best default for an RTX 3050 6GB / 16GB RAM class machine when installed."),
+                "Compact general-purpose model if measured memory shows enough headroom; verify actual resource usage."),
             new RecommendedModel(
                 "qwen3:4b-instruct",
                 "~2.5 GB",
@@ -606,14 +639,14 @@ public sealed class ModelsCommand
                 "~2.5 GB (estimate)",
                 "4096 (initial)",
                 "compact reasoning/chat (capabilities vary by build)",
-                "good on 6GB VRAM-class GPUs",
+                fit4b,
                 "Small Microsoft model option; verify exact tag/capabilities in Ollama."),
             new RecommendedModel(
                 "gemma3:4b",
                 "~3.3 GB (estimate)",
                 "4096 (initial)",
                 "compact chat/instruction; some builds support multimodal features",
-                "good on 6GB VRAM-class GPUs",
+                fit4b,
                 "Google Gemma 3 compact option; verify exact tag and modality support."),
             new RecommendedModel(
                 "qwen3.5:2b",
@@ -656,15 +689,17 @@ internal sealed record HardwareInfo(
         double? ramGb = null;
         try
         {
-            var info = GC.GetGCMemoryInfo();
-            if (info.TotalAvailableMemoryBytes > 0)
-            {
-                ramGb = info.TotalAvailableMemoryBytes / (1024d * 1024d * 1024d);
-            }
+            // GC memory limits describe the managed process, not necessarily physical RAM.
+            // Read Windows physical memory from CIM instead of mislabelling GC limits.
+            var output = RunProcess("powershell",
+                "-NoProfile -NonInteractive -Command \"(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory\"",
+                TimeSpan.FromSeconds(3));
+            if (long.TryParse(output?.Trim(), CultureInfo.InvariantCulture, out var physicalBytes) && physicalBytes > 0)
+                ramGb = physicalBytes / (1024d * 1024d * 1024d);
         }
         catch
         {
-            noteParts.Add("RAM from GC memory info unavailable");
+            noteParts.Add("Physical RAM detection unavailable");
         }
 
         double? diskGb = null;
@@ -681,6 +716,7 @@ internal sealed record HardwareInfo(
         {
         }
 
+        if (!ramGb.HasValue) noteParts.Add("Physical RAM could not be measured");
         var (gpuName, vramGb) = TryDetectGpu();
         if (gpuName is null)
         {
@@ -735,11 +771,6 @@ internal sealed record HardwareInfo(
                 }
             }
 
-            if (vram is null && name?.Contains("3050", StringComparison.OrdinalIgnoreCase) == true)
-            {
-                vram = 6d; // best-effort inference for stated/common config; labeled estimate in output.
-            }
-
             return (name, vram);
         }
         catch
@@ -778,5 +809,20 @@ internal sealed record HardwareInfo(
         {
             return null;
         }
+    }
+}
+
+/// <summary>Conservative hardware fit estimate. Unknown RAM or VRAM never implies a good fit.</summary>
+public static class ModelHardwareFit
+{
+    public static string ForFourB(double? physicalRamGb, double? reportedVramGb)
+    {
+        if (physicalRamGb is null || reportedVramGb is null)
+            return "unknown; verify physical RAM and dedicated VRAM before choosing a 4B model";
+        if (physicalRamGb < 8)
+            return "limited system RAM; prefer a smaller model";
+        if (reportedVramGb >= 5.5 && physicalRamGb >= 14)
+            return "good fit estimate (4B Q4 class; validate actual model memory and context)";
+        return "possible with CPU offload or tuning; benchmark before selecting";
     }
 }

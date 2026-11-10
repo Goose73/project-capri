@@ -45,29 +45,41 @@ public sealed class DesktopTaskAuthorityServiceTests
     }
 
     [Fact]
-    public async Task HostingDesktopService_KeepsLastAuthoritativeStateWhileTaskEventsArrive()
+    public async Task StateLessEventRetainsLastAuthoritativeSnapshot()
     {
-        await using var fx = await DesktopAuthorityFixture.CreateAsync("""{"steps":[{"tool":"launch_app","target":"notepad"}]}""");
-        var bridge = new FakeUiBridge(_ => new AuthorityApprovalDecision(false, null));
-        var service = fx.CreateService(bridge);
-        await service.StartAsync(CancellationToken.None);
-        try
-        {
-            await WaitUntilAsync(() => service.LastState is not null, TimeSpan.FromSeconds(10));
-            await using var cli = new NamedPipeTaskAuthorityClient(fx.PipeName, "cli-state-test", canApprove: false, connectTimeout: TimeSpan.FromSeconds(5));
-            await cli.EnsureConnectedAsync();
-            var submit = await cli.SendAsync(new AuthorityRequest("state-submit", AuthorityRequestKind.SubmitTask, Goal: "inspect state"));
-            Assert.True(submit.Ok);
-            var terminal = await WaitTerminalViaClientAsync(cli, submit.Task!.TaskId, TimeSpan.FromSeconds(20));
-            Assert.NotNull(terminal);
-            // The desktop should not lose its last authoritative state when progress
-            // and task-completion notifications are interleaved with state updates.
-            Assert.NotNull(service.LastState);
-        }
-        finally
-        {
-            await service.StopAsync(CancellationToken.None);
-        }
+        await using var fx = await DesktopAuthorityFixture.CreateAsync("""{"steps":[]}""");
+        var service = fx.CreateService(new FakeUiBridge(_ => null));
+        var state = new AuthorityStateSnapshot(true, 8, null, null, DateTimeOffset.UtcNow);
+
+        service.ApplyEventState(state);
+        service.ApplyEventState(null);
+
+        Assert.Same(state, service.LastState);
+        Assert.True(((ITaskRunner)service).IsStopped);
+    }
+
+    [Fact]
+    public void WatcherIgnoresMissingAndForeignTaskIdentity()
+    {
+        var requestedId = Guid.NewGuid();
+        var otherId = Guid.NewGuid();
+        var emptyState = new AuthorityStateSnapshot(false, 0, null, null, DateTimeOffset.UtcNow);
+        var foreignTask = new TaskSnapshot(otherId, "unrelated", "Completed", 1, 1,
+            null, null, "finished", null, null, false, DateTimeOffset.UtcNow);
+        var matchingTask = foreignTask with { TaskId = requestedId };
+
+        Assert.False(DesktopTaskAuthorityService.IsCompletionForTask(
+            new AuthorityEvent(AuthorityEventKind.TaskCompleted, emptyState), requestedId));
+        Assert.False(DesktopTaskAuthorityService.IsCompletionForTask(
+            new AuthorityEvent(AuthorityEventKind.TaskCompleted, emptyState, foreignTask), requestedId));
+        Assert.True(DesktopTaskAuthorityService.IsCompletionForTask(
+            new AuthorityEvent(AuthorityEventKind.TaskCompleted, emptyState, matchingTask), requestedId));
+        Assert.False(DesktopTaskAuthorityService.IsProgressForTask(
+            new TaskProgress(TaskPhase.Planning, "missing task id"), requestedId));
+        Assert.False(DesktopTaskAuthorityService.IsProgressForTask(
+            new TaskProgress(TaskPhase.Planning, "another task", otherId), requestedId));
+        Assert.True(DesktopTaskAuthorityService.IsProgressForTask(
+            new TaskProgress(TaskPhase.Planning, "my task", requestedId), requestedId));
     }
 
     [Fact]
