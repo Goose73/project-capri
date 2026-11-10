@@ -1,5 +1,10 @@
 # Development progress
 
+## 2026-11-10 — WPF pending-approval invalidation (PR #15, unverified)
+
+Desktop authority now cancels the pending UI approval token when authoritative events report emergency stop or a different/no active task, when a newer approval replaces the dialog, and during authority cleanup. A decision returned after cancellation is not forwarded. This complements (but does not replace) server-side task/approval/hash binding and the fresh-state check. **Verification pending:** no Windows build or automated tests were run for this commit; GitHub Actions has not yet established a passing check. Do not merge or claim M4/M5 acceptance until CI and explicit supervised user acceptance requirements are met. No device actions or approvals were simulated.
+
+
 ## 2026-11-09 — M5 WPF authority integration (feature branch, verified build/tests)
 
 **Branch:** `feat/m5-wpf-authority-integration` (from `551b5fb`). Local Release build: **0 errors** (transient file-lock copy warnings possible when testhost processes linger; no code errors). **613 tests passed, 0 failed, 0 skipped** (`dotnet test Capri.sln -c Release --no-build`).
