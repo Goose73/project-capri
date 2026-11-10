@@ -1,5 +1,9 @@
 # Development progress
 
+## 2026-11-10 — Task-watch parser test analyzer cleanup (verification pending)
+
+Rebased the test-only CA1861 cleanup onto current master rather than merging stale PR #12. The ordered `Assert.Collection` assertion preserves exact argument count and order without allocating a collection expression for the expected arguments. No runtime execution, approval, or IPC behavior changed. Windows CI verification is required before merge; M4 live supervised acceptance remains pending.
+
 ## 2026-11-10 — M5 full note-text disclosure in WPF approval (merged PR #17; Windows CI passed)
 
 Fixed the WPF exact-plan approval preview to display **all** proposed note text instead of truncating it after 300 characters. The old preview could conceal a suffix of a file-writing action even while claiming to show the exact plan. Added a regression test with a note longer than 300 characters and a distinctive final marker. No execution or approval semantics were relaxed; server-side task/approval/hash binding remains authoritative. **Windows CI run 42769721836 passed Release build, tests and safe CLI smoke checks; this is not supervised M4 acceptance.**

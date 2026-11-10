@@ -17,7 +17,9 @@ public sealed class TaskWatchTests
         var invocation = CliParser.Parse(["task", "watch", id.ToString(), "--json"]);
         Assert.True(invocation.IsValid);
         Assert.Equal(CliCommandKind.Task, invocation.Kind);
-        Assert.Equal(["watch", id.ToString()], invocation.Arguments);
+        Assert.Collection(invocation.Arguments,
+            argument => Assert.Equal("watch", argument),
+            argument => Assert.Equal(id.ToString(), argument));
         Assert.True(invocation.Json);
     }
 
