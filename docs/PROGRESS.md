@@ -1,21 +1,21 @@
 # Development progress
 
-## 2026-11-10 — M5 full note-text disclosure in WPF approval (PR pending verification)
+## 2026-11-10 — M5 full note-text disclosure in WPF approval (merged PR #17; Windows CI passed)
 
-Fixed the WPF exact-plan approval preview to display **all** proposed note text instead of truncating it after 300 characters. The old preview could conceal a suffix of a file-writing action even while claiming to show the exact plan. Added a regression test with a note longer than 300 characters and a distinctive final marker. No execution or approval semantics were relaxed; server-side task/approval/hash binding remains authoritative. **Windows CI verification is pending; this is not supervised M4 acceptance.**
-
-
-## 2026-11-10 — M5 pending-approval lifetime hardening (PR #15, unverified)
-
-The desktop now retains its pending approval cancellation registration until authoritative state revalidation and the final IPC response have completed, rather than clearing it immediately when the approval dialog returns. State changes and emergency stop can therefore invalidate an in-flight approval response. The state query and final decision use the linked approval cancellation token; server-side task/approval/hash validation remains authoritative. Added a Windows desktop integration regression test that holds the UI prompt open, triggers emergency stop, checks prompt cancellation, and rejects late approval dispatch. **These changes are committed but not yet build/test verified; GitHub Actions verification remains outstanding.** No supervised M4 acceptance was simulated and the Raspberry Pi Hub remains removed.
+Fixed the WPF exact-plan approval preview to display **all** proposed note text instead of truncating it after 300 characters. The old preview could conceal a suffix of a file-writing action even while claiming to show the exact plan. Added a regression test with a note longer than 300 characters and a distinctive final marker. No execution or approval semantics were relaxed; server-side task/approval/hash binding remains authoritative. **Windows CI run 42769721836 passed Release build, tests and safe CLI smoke checks; this is not supervised M4 acceptance.**
 
 
-## 2026-11-10 — WPF pending-approval invalidation (PR #15, unverified)
+## 2026-11-10 — M5 pending-approval lifetime hardening (merged PR #15; Windows CI passed)
 
-Desktop authority now cancels the pending UI approval token when authoritative events report emergency stop or a different/no active task, when a newer approval replaces the dialog, and during authority cleanup. A decision returned after cancellation is not forwarded. This complements (but does not replace) server-side task/approval/hash binding and the fresh-state check. **Verification pending:** no Windows build or automated tests were run for this commit; GitHub Actions has not yet established a passing check. Do not merge or claim M4/M5 acceptance until CI and explicit supervised user acceptance requirements are met. No device actions or approvals were simulated.
+The desktop now retains its pending approval cancellation registration until authoritative state revalidation and the final IPC response have completed, rather than clearing it immediately when the approval dialog returns. State changes and emergency stop can therefore invalidate an in-flight approval response. The state query and final decision use the linked approval cancellation token; server-side task/approval/hash validation remains authoritative. Added a Windows desktop integration regression test that holds the UI prompt open, triggers emergency stop, checks prompt cancellation, and rejects late approval dispatch. **PR #15 passed Windows CI run 42756562171 before merge; supervised M4 acceptance remains outstanding.** No supervised M4 acceptance was simulated and the Raspberry Pi Hub remains removed.
 
 
-## 2026-11-09 — M5 WPF authority integration (feature branch, verified build/tests)
+## 2026-11-10 — WPF pending-approval invalidation (merged PR #15; Windows CI passed)
+
+Desktop authority now cancels the pending UI approval token when authoritative events report emergency stop or a different/no active task, when a newer approval replaces the dialog, and during authority cleanup. A decision returned after cancellation is not forwarded. This complements (but does not replace) server-side task/approval/hash binding and the fresh-state check. **Verification:** PR #15 passed Windows CI run 42756562171 before merge. Do not claim supervised M4/M5 acceptance until the user's explicit interactive acceptance is completed. No device actions or approvals were simulated.
+
+
+## 2026-11-09 — M5 WPF authority integration (merged PR #15; Windows CI passed)
 
 **Branch:** `feat/m5-wpf-authority-integration` (from `551b5fb`). Local Release build: **0 errors** (transient file-lock copy warnings possible when testhost processes linger; no code errors). **613 tests passed, 0 failed, 0 skipped** (`dotnet test Capri.sln -c Release --no-build`).
 
