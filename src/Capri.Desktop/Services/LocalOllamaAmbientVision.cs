@@ -49,7 +49,10 @@ public sealed class LocalOllamaAmbientVision : IAmbientVisionClient, IDisposable
     {
         if (string.IsNullOrWhiteSpace(name) || name.Length > 100)
             return false;
-        return name.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.' or ':' or '/');
+        // Ollama can expose cloud/remote model names through the local daemon.
+        // Local networking alone does not guarantee local inference.
+        return !name.Contains("cloud", StringComparison.OrdinalIgnoreCase)
+            && name.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.' or ':' or '/');
     }
 
     public async Task<bool> IsModelReadyAsync(string model, CancellationToken cancellationToken)
@@ -66,17 +69,57 @@ public sealed class LocalOllamaAmbientVision : IAmbientVisionClient, IDisposable
             models.ValueKind != JsonValueKind.Array)
             return false;
 
+        var locallyInstalled = false;
         foreach (var entry in models.EnumerateArray())
         {
-            if (entry.TryGetProperty("name", out var name) &&
-                string.Equals(name.GetString(), model, StringComparison.OrdinalIgnoreCase))
-                return true;
-            if (entry.TryGetProperty("model", out var id) &&
-                string.Equals(id.GetString(), model, StringComparison.OrdinalIgnoreCase))
-                return true;
+            var matches =
+                (entry.TryGetProperty("name", out var name) &&
+                 string.Equals(name.GetString(), model, StringComparison.OrdinalIgnoreCase)) ||
+                (entry.TryGetProperty("model", out var id) &&
+                 string.Equals(id.GetString(), model, StringComparison.OrdinalIgnoreCase));
+            if (!matches) continue;
+
+            // Ollama cloud aliases can appear in the model registry even though
+            // they do not have a locally downloaded model blob.
+            if (!entry.TryGetProperty("size", out var size) ||
+                size.ValueKind != JsonValueKind.Number ||
+                !size.TryGetInt64(out var bytes) || bytes <= 0)
+                return false;
+            if (HasNonEmptyString(entry, "remote_model") ||
+                HasNonEmptyString(entry, "remote_host"))
+                return false;
+            locallyInstalled = true;
+            break;
         }
-        return false;
+        if (!locallyInstalled) return false;
+
+        using var infoRequest = new HttpRequestMessage(HttpMethod.Post, new Uri(LocalBase, "api/show"))
+        {
+            Content = new StringContent(JsonSerializer.Serialize(new { model }),
+                Encoding.UTF8, "application/json")
+        };
+        using var infoResponse = await SendLocalAsync(infoRequest, cancellationToken)
+            .ConfigureAwait(false);
+        if (!infoResponse.IsSuccessStatusCode)
+            return false;
+        using var info = await ReadJsonAsync(infoResponse, cancellationToken)
+            .ConfigureAwait(false);
+        var root = info.RootElement;
+        if (HasNonEmptyString(root, "remote_model") ||
+            HasNonEmptyString(root, "remote_host") ||
+            !root.TryGetProperty("capabilities", out var capabilities) ||
+            capabilities.ValueKind != JsonValueKind.Array)
+            return false;
+
+        return capabilities.EnumerateArray().Any(capability =>
+            capability.ValueKind == JsonValueKind.String &&
+            string.Equals(capability.GetString(), "vision", StringComparison.OrdinalIgnoreCase));
     }
+
+    private static bool HasNonEmptyString(JsonElement model, string property) =>
+        model.TryGetProperty(property, out var value) &&
+        value.ValueKind == JsonValueKind.String &&
+        !string.IsNullOrWhiteSpace(value.GetString());
 
     public async Task<AmbientVisionObservation> ObserveAsync(
         string model, byte[] jpeg, CancellationToken cancellationToken)
