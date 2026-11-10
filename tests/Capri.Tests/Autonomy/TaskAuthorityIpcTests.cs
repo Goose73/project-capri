@@ -78,6 +78,65 @@ public sealed class TaskAuthorityIpcTests
     }
 
     [Fact]
+    public async Task EmergencyStopSurvivesAuthorityRestartAndRequiresExplicitReset()
+    {
+        using var temp = new TempDirectory();
+        var paths = new CapriPaths(temp.Path);
+        var pipeName = "capri-test-" + Guid.NewGuid().ToString("N");
+        var control = new FileTaskControl(paths);
+        var history = new FileTaskHistoryStore(paths);
+        var executor = Substitute.For<ITaskExecutor>();
+        executor.ExecuteAsync(Arg.Any<TaskStep>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new TaskOutcome(true, false, "dispatched"));
+
+        NamedPipeTaskAuthorityServer MakeServer()
+        {
+            var provider = new StubChatProvider
+            {
+                ProviderId = "ollama",
+                CompletionResult = new ChatCompletion(new ChatMessage(ChatRole.Assistant,
+                    """{"steps":[{"tool":"launch_app","target":"notepad"}]}"""))
+            };
+            return new NamedPipeTaskAuthorityServer(pipeName, paths, history, provider,
+                new StubModelRouter("ollama", "stub-model", supportsStreaming: false),
+                executor, new TaskMetadataJournal(paths, history), control);
+        }
+
+        await using (var first = MakeServer())
+        {
+            first.Start();
+            await using var client = new NamedPipeTaskAuthorityClient(pipeName, "stop-test",
+                canApprove: true, connectTimeout: TimeSpan.FromSeconds(3));
+            await client.EnsureConnectedAsync();
+            var stop = await client.SendAsync(Req(AuthorityRequestKind.Stop));
+            Assert.True(stop.Ok, stop.Error);
+            Assert.True(stop.State?.Stopped);
+            Assert.True(control.GetStopState().Stopped);
+        }
+
+        await using (var restarted = MakeServer())
+        {
+            // Durable latch must be visible before any connection or task is accepted.
+            Assert.True(restarted.GetStateSnapshot().Stopped);
+            Assert.Equal(control.GetStopState().Generation, restarted.GetStateSnapshot().StopGeneration);
+            restarted.Start();
+            await using var client = new NamedPipeTaskAuthorityClient(pipeName, "restart-test",
+                canApprove: true, connectTimeout: TimeSpan.FromSeconds(3));
+            await client.EnsureConnectedAsync();
+            var blocked = await client.SendAsync(Req(AuthorityRequestKind.SubmitTask, goal: "must not run"));
+            Assert.False(blocked.Ok);
+            Assert.Contains("stop", blocked.Error ?? "", StringComparison.OrdinalIgnoreCase);
+            await executor.DidNotReceiveWithAnyArgs().ExecuteAsync(default!, default, default);
+
+            var reset = await client.SendAsync(Req(AuthorityRequestKind.ResetStop));
+            Assert.True(reset.Ok, reset.Error);
+            Assert.False(reset.State?.Stopped);
+            Assert.False(control.GetStopState().Stopped);
+            Assert.Equal(control.GetStopState().Generation, reset.State?.StopGeneration);
+        }
+    }
+
+    [Fact]
     public async Task ApprovalRejectsWrongPlanHashThenAcceptsCorrectHash()
     {
         await using var fx = await AuthorityFixture.CreateAsync(planJson: """{"steps":[{"tool":"launch_app","target":"calculator"}]}""");
