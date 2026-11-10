@@ -1,5 +1,10 @@
 # Development progress
 
+## 2026-11-10 — M5 pending-approval lifetime hardening (PR #15, unverified)
+
+The desktop now retains its pending approval cancellation registration until authoritative state revalidation and the final IPC response have completed, rather than clearing it immediately when the approval dialog returns. State changes and emergency stop can therefore invalidate an in-flight approval response. The state query and final decision use the linked approval cancellation token; server-side task/approval/hash validation remains authoritative. Added a Windows desktop integration regression test that holds the UI prompt open, triggers emergency stop, checks prompt cancellation, and rejects late approval dispatch. **These changes are committed but not yet build/test verified; GitHub Actions verification remains outstanding.** No supervised M4 acceptance was simulated and the Raspberry Pi Hub remains removed.
+
+
 ## 2026-11-10 — WPF pending-approval invalidation (PR #15, unverified)
 
 Desktop authority now cancels the pending UI approval token when authoritative events report emergency stop or a different/no active task, when a newer approval replaces the dialog, and during authority cleanup. A decision returned after cancellation is not forwarded. This complements (but does not replace) server-side task/approval/hash binding and the fresh-state check. **Verification pending:** no Windows build or automated tests were run for this commit; GitHub Actions has not yet established a passing check. Do not merge or claim M4/M5 acceptance until CI and explicit supervised user acceptance requirements are met. No device actions or approvals were simulated.
