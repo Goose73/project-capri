@@ -37,6 +37,8 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
     private NamedPipeTaskAuthorityClient? _client;
     private AuthorityStateSnapshot? _lastState;
     private string _status = "Not connected";
+    private CancellationTokenSource? _pendingApprovalCancellation;
+    private string? _pendingApprovalTaskId;
 
     public DesktopTaskAuthorityService(
         ICapriPaths paths,
@@ -185,7 +187,13 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
         if (client is null) return;
         await foreach (var evt in client.Events(ct).ConfigureAwait(false))
         {
-            lock (_sync) _lastState = evt.State;
+            lock (_sync)
+            {
+                _lastState = evt.State;
+                if (_pendingApprovalCancellation is not null && evt.State is { } state &&
+                    (state.Stopped || state.ActiveTask?.TaskId != _pendingApprovalTaskId))
+                    _pendingApprovalCancellation.Cancel();
+            }
             StateChanged?.Invoke(this, EventArgs.Empty);
             if (evt.Kind == AuthorityEventKind.ApprovalRequired && evt.Approval is { } approval)
             {
@@ -198,19 +206,35 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
     {
         var originatingClient = Volatile.Read(ref _client);
         if (originatingClient is null) return;
-        AuthorityApprovalDecision? decision;
-        try
+        using var approvalCts = CancellationTokenSource.CreateLinkedTokenSource(serviceCt);
+        lock (_sync)
         {
-            using var approvalCts = CancellationTokenSource.CreateLinkedTokenSource(serviceCt);
-            // If authority state no longer shows this pending approval, cancel UI.
-            decision = await _ui.RequestApprovalAsync(approval, approvalCts.Token).ConfigureAwait(false);
+            // Never leave two independently actionable dialogs for the same authority.
+            _pendingApprovalCancellation?.Cancel();
+            _pendingApprovalCancellation = approvalCts;
+            _pendingApprovalTaskId = approval.TaskId;
+            if (_lastState is { } state && (state.Stopped || state.ActiveTask?.TaskId != approval.TaskId))
+                approvalCts.Cancel();
         }
+        AuthorityApprovalDecision? decision;
+        try { decision = await _ui.RequestApprovalAsync(approval, approvalCts.Token).ConfigureAwait(false); }
         catch (OperationCanceledException) { decision = null; }
         catch { decision = null; }
+        finally
+        {
+            lock (_sync)
+            {
+                if (ReferenceEquals(_pendingApprovalCancellation, approvalCts))
+                {
+                    _pendingApprovalCancellation = null;
+                    _pendingApprovalTaskId = null;
+                }
+            }
+        }
 
         // A dismissed/cancelled prompt is not a fresh user decision. In particular,
         // never forward a decision from an old authority connection to a new one.
-        if (decision is null || serviceCt.IsCancellationRequested) return;
+        if (decision is null || approvalCts.IsCancellationRequested || serviceCt.IsCancellationRequested) return;
         var client = Volatile.Read(ref _client);
         if (!ReferenceEquals(client, originatingClient)) return;
         // Re-read authoritative state after the human has interacted with the dialog.
@@ -244,6 +268,7 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
 
     private async Task CleanupAsync()
     {
+        lock (_sync) _pendingApprovalCancellation?.Cancel();
         var client = Interlocked.Exchange(ref _client, null);
         if (client is not null) try { await client.DisposeAsync().ConfigureAwait(false); } catch { }
         NamedPipeTaskAuthorityServer? host;
