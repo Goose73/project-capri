@@ -38,7 +38,7 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
     private AuthorityStateSnapshot? _lastState;
     private string _status = "Not connected";
     private CancellationTokenSource? _pendingApprovalCancellation;
-    private string? _pendingApprovalTaskId;
+    private Guid? _pendingApprovalTaskId;
 
     public DesktopTaskAuthorityService(
         ICapriPaths paths,
