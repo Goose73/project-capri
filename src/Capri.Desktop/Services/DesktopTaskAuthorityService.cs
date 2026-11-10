@@ -213,6 +213,19 @@ public sealed class DesktopTaskAuthorityService : BackgroundService, ITaskRunner
         if (decision is null || serviceCt.IsCancellationRequested) return;
         var client = Volatile.Read(ref _client);
         if (!ReferenceEquals(client, originatingClient)) return;
+        // Re-read authoritative state after the human has interacted with the dialog.
+        // A cancellation, stop, or task replacement may have occurred while it was open.
+        // The server remains responsible for final approvalId/planHash validation.
+        AuthorityResponse current;
+        try
+        {
+            current = await client.SendAsync(new AuthorityRequest(Guid.NewGuid().ToString("N"), AuthorityRequestKind.GetState), serviceCt).ConfigureAwait(false);
+        }
+        catch { return; }
+        if (!current.Ok || current.State is null || current.State.Stopped ||
+            current.State.ActiveTask?.TaskId != approval.TaskId ||
+            !ReferenceEquals(Volatile.Read(ref _client), originatingClient)) return;
+
         var approved = decision.Approved;
         var req = new AuthorityRequest(Guid.NewGuid().ToString("N"),
             approved ? AuthorityRequestKind.Approve : AuthorityRequestKind.Deny,
