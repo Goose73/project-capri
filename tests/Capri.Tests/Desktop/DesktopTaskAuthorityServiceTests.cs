@@ -70,6 +70,36 @@ public sealed class DesktopTaskAuthorityServiceTests
         }
     }
 
+    [Fact]
+    public async Task HostingDesktopService_EmergencyStopCancelsPendingApprovalWithoutExecution()
+    {
+        var executor = Substitute.For<ITaskExecutor>();
+        await using var fx = await DesktopAuthorityFixture.CreateAsync("""{"steps":[{"tool":"launch_app","target":"notepad"}]}""", executor);
+        var bridge = new BlockingUiBridge();
+        var service = fx.CreateService(bridge);
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            await WaitUntilAsync(() => service.ConnectionStatus.Contains("Hosting", StringComparison.OrdinalIgnoreCase), TimeSpan.FromSeconds(10));
+            await using var cli = new NamedPipeTaskAuthorityClient(fx.PipeName, "cli-stop-test", canApprove: false, connectTimeout: TimeSpan.FromSeconds(5));
+            await cli.EnsureConnectedAsync();
+            var submit = await cli.SendAsync(new AuthorityRequest("stop-submit", AuthorityRequestKind.SubmitTask, Goal: "stop while approval pending"));
+            Assert.True(submit.Ok);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await bridge.PromptShown.Task.WaitAsync(timeout.Token);
+            var stop = await cli.SendAsync(new AuthorityRequest("stop-request", AuthorityRequestKind.Stop), timeout.Token);
+            Assert.True(stop.Ok);
+            await bridge.PromptCancelled.Task.WaitAsync(timeout.Token);
+            // A cancelled dialog must never result in dispatch, even if the UI later tries to approve.
+            bridge.ReturnLateApproval();
+            await executor.DidNotReceiveWithAnyArgs().ExecuteAsync(default!, default, default);
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
     {
         var until = DateTime.UtcNow + timeout;
@@ -97,6 +127,22 @@ public sealed class DesktopTaskAuthorityServiceTests
             }
         }
         return null;
+    }
+
+    private sealed class BlockingUiBridge : ITaskAuthorityUiBridge
+    {
+        private readonly TaskCompletionSource<AuthorityApprovalDecision?> _result = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> PromptShown { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> PromptCancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<AuthorityApprovalDecision?> RequestApprovalAsync(ApprovalRequestSnapshot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.Register(() => PromptCancelled.TrySetResult(true));
+            PromptShown.TrySetResult(true);
+            return _result.Task;
+        }
+
+        public void ReturnLateApproval() => _result.TrySetResult(new AuthorityApprovalDecision(true, null));
     }
 
     private sealed class FakeUiBridge : ITaskAuthorityUiBridge
