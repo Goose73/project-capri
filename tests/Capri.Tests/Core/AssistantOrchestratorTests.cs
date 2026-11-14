@@ -95,6 +95,29 @@ public sealed class AssistantOrchestratorTests
         Assert.Equal(AvatarState.Error, avatar.Current);
     }
 
+    [Theory]
+    [InlineData(ProviderErrorKind.Network, "start Ollama")]
+    [InlineData(ProviderErrorKind.Timeout, "took too long")]
+    [InlineData(ProviderErrorKind.Authentication, "credentials")]
+    [InlineData(ProviderErrorKind.NotFound, "wasn't found")]
+    [InlineData(ProviderErrorKind.Configuration, "Settings")]
+    public async Task ProviderErrorExplainsRecoveryWithoutRevealingPayload(
+        ProviderErrorKind kind, string expectedGuidance)
+    {
+        var provider = new FakeChatProvider(new ChatDelta(string.Empty,
+            Error: new ProviderError(kind, "SECRET_credential_in_raw_provider_error")));
+        var orchestrator = CreateOrchestrator(provider, new FakeAutomationService());
+
+        var updates = await CollectAsync(orchestrator.StreamAsync("hello"));
+        var failed = Assert.Single(updates, u => u.Kind == AssistantUpdateKind.Failed);
+
+        Assert.NotNull(failed.Error);
+        Assert.Equal(kind, failed.Error!.Kind);
+        Assert.Contains(expectedGuidance, failed.Error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("SECRET_credential", failed.Error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Turn ", failed.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task CancellationStopsTurn()
     {

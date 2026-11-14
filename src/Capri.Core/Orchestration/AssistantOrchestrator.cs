@@ -304,7 +304,7 @@ public sealed partial class AssistantOrchestrator : IAssistantOrchestrator, IDis
 
                 if (delta.Error is not null)
                 {
-                    streamError = CreateFriendlyFailure(turnId, "The chat provider reported an error.");
+                    streamError = DescribeProviderFailure(turnId, delta.Error);
                     break;
                 }
 
@@ -387,6 +387,36 @@ public sealed partial class AssistantOrchestrator : IAssistantOrchestrator, IDis
     private static bool IsAutomationIntent(Intent intent)
     {
         return intent.Kind is IntentKind.LaunchApp or IntentKind.OpenWeb or IntentKind.MediaControl;
+    }
+
+    /// <summary>
+    /// Use the provider's category, never raw network messages, URLs, API
+    /// responses or exception text. This lets people recover from a local
+    /// model server being offline without exposing credentials in chat.
+    /// </summary>
+    private static ProviderError DescribeProviderFailure(string turnId, ProviderError failure)
+    {
+        var guidance = failure.Kind switch
+        {
+            ProviderErrorKind.Network =>
+                "Can't connect to the AI server. If you're using local Ollama, start Ollama and try again.",
+            ProviderErrorKind.Timeout =>
+                "The AI server took too long to respond. Check that your local model is running or retry.",
+            ProviderErrorKind.Authentication =>
+                "The AI provider rejected its credentials. Check your account or API key in Settings.",
+            ProviderErrorKind.Authorization =>
+                "The AI provider denied access. Check the account and model permissions in Settings.",
+            ProviderErrorKind.Configuration =>
+                "The AI provider isn't fully configured. Open Settings and check your model and consent options.",
+            ProviderErrorKind.NotFound =>
+                "The selected AI model wasn't found. Check that it's installed and selected in Settings.",
+            ProviderErrorKind.RateLimited =>
+                "The AI provider is limiting requests. Try again after the limit resets.",
+            ProviderErrorKind.InvalidRequest =>
+                "The AI server rejected this request. Check the selected model in Settings.",
+            _ => "The chat provider reported an error. Check Settings and try again."
+        };
+        return new ProviderError(failure.Kind, $"Turn {turnId}: {guidance}");
     }
 
     private static ProviderError CreateFriendlyFailure(string turnId, string message)

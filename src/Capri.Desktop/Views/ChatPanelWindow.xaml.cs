@@ -1,4 +1,7 @@
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Net;
+using System.Net.Http;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -146,6 +149,95 @@ public partial class ChatPanelWindow : Window
             MessageBox.Show(this,
                 "Developer workspace could not be opened. No project files were accessed.",
                 "Capri", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>
+    /// Explicit, user-initiated recovery for a configured local Ollama server.
+    /// Never run arbitrary user-supplied executable paths or silently launch AI
+    /// just because a model request failed.
+    /// </summary>
+    private async void StartOllama_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var settings = _serviceProvider
+                .GetRequiredService<Capri.Core.Abstractions.IAppSettingsStore>()
+                .Current.Provider;
+            if (!string.Equals(settings.ProviderId, "ollama", StringComparison.OrdinalIgnoreCase) ||
+                !Uri.TryCreate(settings.BaseUrl, UriKind.Absolute, out var endpoint) ||
+                endpoint.Scheme != Uri.UriSchemeHttp ||
+                endpoint.Port != 11434 ||
+                !(string.Equals(endpoint.Host, "localhost", StringComparison.OrdinalIgnoreCase) ||
+                  (IPAddress.TryParse(endpoint.Host, out var hostIp) && IPAddress.IsLoopback(hostIp))))
+            {
+                MessageBox.Show(this,
+                    "The currently selected AI provider is not local Ollama on port 11434. " +
+                    "Check your model connection in Settings.",
+                    "Capri - local AI", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            using var handler = new HttpClientHandler { UseProxy = false, AllowAutoRedirect = false };
+            using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(2) };
+            const string healthUrl = "http://127.0.0.1:11434/api/tags";
+            if (await IsOllamaReadyAsync(client, healthUrl).ConfigureAwait(true))
+            {
+                _viewModel.StatusText = "Local Ollama is already running.";
+                return;
+            }
+
+            var executable = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Programs", "Ollama", "ollama.exe");
+            if (!File.Exists(executable))
+            {
+                MessageBox.Show(this,
+                    "Ollama is not installed in its normal user folder. " +
+                    "Install Ollama or launch the installed version manually.",
+                    "Capri - local AI", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = executable,
+                Arguments = "serve",
+                WorkingDirectory = Path.GetDirectoryName(executable)!,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+
+            _viewModel.StatusText = "Starting local Ollama...";
+            for (var attempt = 0; attempt < 12; attempt++)
+            {
+                await Task.Delay(500).ConfigureAwait(true);
+                if (await IsOllamaReadyAsync(client, healthUrl).ConfigureAwait(true))
+                {
+                    _viewModel.StatusText = "Local AI ready. You can send a message.";
+                    return;
+                }
+            }
+            _viewModel.StatusText = "Ollama did not become ready. Check whether it is running.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                   System.ComponentModel.Win32Exception or HttpRequestException or
+                                   InvalidOperationException or TaskCanceledException)
+        {
+            _viewModel.StatusText = "Could not start Ollama. Try launching Ollama from Windows.";
+        }
+    }
+
+    private static async Task<bool> IsOllamaReadyAsync(HttpClient client, string url)
+    {
+        try
+        {
+            using var response = await client.GetAsync(url).ConfigureAwait(true);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return false;
         }
     }
 
