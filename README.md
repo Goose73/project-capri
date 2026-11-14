@@ -38,6 +38,12 @@ Screen vision is **architecture only** - see [docs/SCREEN-CONTROL-PLAN.md](docs/
 
 The WPF **Dev** workspace and `capri dev` CLI now share project bookmarks and **DPAPI-encrypted, persistent developer chat**. The Conversation tab sends typed messages through Capri's configured provider; **no project files are attached automatically**. A separate read-only project browser requires an explicit Yes per GUI window/project or a CLI confirmation/`--allow-read` per request. It lists one folder at a time and previews one small, allowlisted UTF-8 text file, excluding common secret, linked and hidden paths. No code edits, arbitrary shell execution, privilege elevation, or automatic task approvals are enabled. A full-screen developer TUI and OpenCode-level coding tools remain planned. See [developer workspace permissions and commands](docs/DEVELOPER-SESSIONS.md) and the [OpenCode capability roadmap](docs/OPENCODE-CAPABILITY-ROADMAP.md).
 
+## Chat recovery and compact overlay
+
+If chat displays a network error using local Ollama, check whether Ollama is running. Expand **More controls: task status and webcam** in the Capri chat panel and click **Start local AI (Ollama)** to launch the installed local server explicitly. No background auto-start is performed by clicking Send; the UI does not access the webcam without fresh consent.
+
+The compact chat overlay now keeps **STOP task** always visible, places secondary task/webcam controls in a collapsed expander, and shows actionable provider error categories instead of a generic failure. Local AI setup still requires a configured provider and a running compatible model.
+
 ## Implemented features
 
 - **CLI (Milestone 1 + M3 + M4, partial/verified core path)** - `capri start/ask/chat/status/providers test/models list|recommend|use|pull` with Ollama model management and terminal inference (M3 verified). M4 adds `capri task`/`tasks`/`task status|stop|reset-stop|history` with terminal approval UI (implemented; automated + safe CLI control checks verified; **live supervised acceptance pending**). `capri chat` refuses non-interactive stdin (TTY multi-turn/streaming/Ctrl+C cancellation need manual acceptance).

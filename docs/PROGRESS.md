@@ -1,5 +1,13 @@
 # Development progress
 
+## 2026-11-14 — Fix local AI connection errors and chat-panel layout (in progress)
+
+User-supplied screenshot shows Capri chat error and cramped controls. Inspected local logs rather than guessing: the installed Ollama model provider (`qwen3:4b-instruct`, `http://localhost:11434/v1`) returned repeated Windows connection-refused errors because no Ollama process was listening. Started the already installed local Ollama server without downloading a model or changing credentials. Verified HTTP `/api/tags` lists both local Qwen models; real `capri providers test --json` returned `ok:true` (model did not reproduce exact health-check phrase), and `capri ask` produced a coherent compiler explanation with `ok:true`.
+
+Code fix: `AssistantOrchestrator` now maps provider error *categories* to actionable safe instructions without displaying raw error payloads or credentials. Added regression cases for Network/Timeout/Authentication/NotFound/Configuration and redaction. Compact WPF chat is taller, has correctly docked close control, prioritizes the message list, keeps emergency **STOP task** and live camera status visible, collapses secondary task/webcam controls by default, and adds explicit manual **Start local AI (Ollama)** recovery using only the known installed executable and fixed loopback health probe. No webcam capture, cloud provider or model downloads were enabled.
+
+**Verification:** Current user desktop/CLI binaries are actively running, locking Release output DLLs. Run local Debug build/tests on the feature branch and GitHub isolated Windows Release CI before updating the running desktop binary. Prior Debug build passed 716 tests before the manual Ollama launcher was added; final local validation, CI and visual acceptance remain separate gates.
+
 ## 2026-11-14 — Permissioned project reader and persistent developer conversations (PR pending)
 
 Implemented an explicit opt-in read-only project browser in the WPF Dev window and CLI: `dev files` lists a single bounded directory, `dev file` previews only a selected small UTF-8 source file. CLI refuses noninteractive reads without `--allow-read`; WPF asks Yes/No for the selected project and clears temporary consent on selection changes. Directory escape, reparse paths, hidden/system files, common credential/secret paths and large/binary content are rejected. No recursive source scanning, code writes, terminal execution or implicit model attachments.

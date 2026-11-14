@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:Capri.Desktop.ViewModels"
         mc:Ignorable="d"
         Title="Capri Chat"
-        Width="390" Height="555"
+        Width="410" Height="620"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -113,7 +113,7 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <DockPanel Grid.Row="0" Margin="0,0,0,6">
+            <DockPanel Grid.Row="0" Margin="0,0,0,6" LastChildFill="False">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
                     <Ellipse Width="8" Height="8" Fill="{StaticResource FaceGreen}" Margin="0,0,6,0" VerticalAlignment="Center"/>
                     <TextBlock Text="Capri" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
@@ -124,38 +124,62 @@
                         ToolTip="Hide chat" Click="HideButton_Click"/>
             </DockPanel>
 
-            <Border Grid.Row="1" Background="{StaticResource SurfaceBg}" CornerRadius="10" Padding="8,6" Margin="0,0,0,8"
+            <!-- Keep the emergency stop permanently accessible. Diagnostics
+                 and camera controls are optional, not a permanent 150px header. -->
+            <Border Grid.Row="1" Background="{StaticResource SurfaceBg}" CornerRadius="10" Padding="8,6" Margin="0,0,0,7"
                     BorderBrush="#334A4060" BorderThickness="1">
-                <StackPanel>
-                    <TextBlock Text="{Binding ModelStatus}" FontSize="11" Foreground="{StaticResource EyeBlue}" TextWrapping="Wrap"/>
-                    <TextBlock Text="{Binding AuthorityStatus}" FontSize="10" Foreground="{StaticResource TextDim}" Margin="0,2,0,0" TextWrapping="Wrap"/>
-                    <TextBlock Text="{Binding ActiveTaskStatus}" FontSize="10" Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
-                    <TextBlock Text="{Binding StatusText}" FontSize="11" Foreground="{StaticResource TextDim}" Margin="0,1,0,0" TextWrapping="Wrap"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,2,0,0">
-                        <Button Content="STOP task" Style="{StaticResource DarkButton}" ToolTip="Latch emergency task stop via shared authority when available" Command="{Binding EmergencyStopCommand}"/>
-                        <Button Content="Reset stop" Style="{StaticResource DarkButton}" Margin="5,0,0,0" ToolTip="Explicitly reset task stop for future tasks" Command="{Binding ResetTaskStopCommand}"/>
+                <DockPanel LastChildFill="True">
+                    <Button DockPanel.Dock="Right" Content="STOP task" Style="{StaticResource DarkButton}"
+                            Margin="8,0,0,0" Padding="8,5"
+                            ToolTip="Emergency stop: immediately latch task stop via shared authority"
+                            Command="{Binding EmergencyStopCommand}"/>
+                    <StackPanel>
+                        <TextBlock Text="{Binding ModelStatus}" FontSize="12"
+                                   Foreground="{StaticResource EyeBlue}" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding StatusText}" FontSize="11"
+                                   Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding Ambient.StatusText}" FontSize="10"
+                                   Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
                     </StackPanel>
-                </StackPanel>
+                </DockPanel>
             </Border>
 
-            <Border Grid.Row="2" Background="#33201A2D" BorderBrush="#664D98A6"
-                    BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,7">
-                <StackPanel>
-                    <TextBlock Text="AMBIENT COMPANION / WEBCAM" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource FaceGreen}"/>
-                    <TextBlock Text="{Binding Ambient.StatusText}" FontSize="10" TextWrapping="Wrap"
-                               Foreground="{StaticResource TextDim}" Margin="0,2,0,5"/>
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Start camera" Style="{StaticResource DarkButton}" Padding="7,4" Margin="0,0,4,0"
-                                ToolTip="Requires a separate camera consent dialog each session" Click="StartCamera_Click"/>
-                        <Button Content="Pause" Style="{StaticResource DarkButton}" Padding="7,4" Margin="0,0,4,0"
-                                Click="PauseCamera_Click"/>
-                        <Button Content="Resume" Style="{StaticResource DarkButton}" Padding="7,4" Margin="0,0,4,0"
-                                Click="ResumeCamera_Click"/>
-                        <Button Content="Stop" Style="{StaticResource DarkButton}" Padding="7,4"
-                                Click="StopCamera_Click"/>
+            <Expander Grid.Row="2" Header="More controls: task status and webcam"
+                      IsExpanded="False" Foreground="{StaticResource TextDim}"
+                      Margin="0,0,0,7" FontSize="11">
+                <Border Background="#33201A2D" BorderBrush="#664D98A6"
+                        BorderThickness="1" CornerRadius="8" Padding="8" Margin="0,5,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding AuthorityStatus}" FontSize="11"
+                                   Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding ActiveTaskStatus}" FontSize="11"
+                                   Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
+                        <WrapPanel Margin="0,6,0,10">
+                            <Button Content="Reset stop" Style="{StaticResource DarkButton}"
+                                    Margin="0,0,5,0"
+                                    ToolTip="Reset the task emergency-stop latch for future tasks"
+                                    Command="{Binding ResetTaskStopCommand}"/>
+                            <Button Content="Start local AI (Ollama)" Style="{StaticResource DarkButton}"
+                                    Margin="0" Click="StartOllama_Click"
+                                    ToolTip="Start the installed local Ollama server with your permission"/>
+                        </WrapPanel>
+                        <TextBlock Text="WEBCAM (opt-in)" FontSize="11"
+                                   FontWeight="SemiBold" Foreground="{StaticResource FaceGreen}"/>
+                        <TextBlock Text="{Binding Ambient.StatusText}" FontSize="11"
+                                   Foreground="{StaticResource TextDim}" TextWrapping="Wrap" Margin="0,3,0,7"/>
+                        <WrapPanel>
+                            <Button Content="Start camera" Style="{StaticResource DarkButton}" Padding="7,4" Margin="0,0,4,4"
+                                    ToolTip="Requires separate webcam consent for each session" Click="StartCamera_Click"/>
+                            <Button Content="Pause" Style="{StaticResource DarkButton}" Padding="7,4" Margin="0,0,4,4"
+                                    Click="PauseCamera_Click"/>
+                            <Button Content="Resume" Style="{StaticResource DarkButton}" Padding="7,4" Margin="0,0,4,4"
+                                    Click="ResumeCamera_Click"/>
+                            <Button Content="Stop camera" Style="{StaticResource DarkButton}" Padding="7,4" Margin="0,0,4,4"
+                                    Click="StopCamera_Click"/>
+                        </WrapPanel>
                     </StackPanel>
-                </StackPanel>
-            </Border>
+                </Border>
+            </Expander>
 
             <Border Grid.Row="3" Background="{StaticResource SurfaceBg}" CornerRadius="10" BorderBrush="#334A4060" BorderThickness="1">
                 <ScrollViewer x:Name="MessagesScroll" VerticalScrollBarVisibility="Auto" Padding="8">
