@@ -1,36 +1,46 @@
-# Capri developer workspace: first foundation
+# Developer workspace: persistent chat and explicitly permitted source preview
 
-Status: **implemented metadata-only prototype** on feature branch `feat/developer-session-foundation-20261114`; no arbitrary shell or coding agent enabled.
+Status (14 November 2026): Windows WPF + CLI implementation; local Release build/tests passed (full CI and manual WPF acceptance are separate gates). Developer workspace remains **GUI-first**. An optional full-screen TUI, code-editing tools, Git diff approval, MCP/skills/plugins and worktrees are **not yet implemented**.
 
-## Why this exists
+## User workflow
 
-Capri's default interface is the friendly WPF assistant. Developers will later have a project-focused GUI and an optional interactive terminal UI (`capri dev`) connected to the same sessions, model providers, and safety/approval authority. The initial slice establishes a stable project-session identity and local metadata that **both GUI and CLI can already read**.
+1. Open Capri chat and click **Dev**. Use **Add folder** to save a project bookmark. This saves metadata only; no source files are opened by selecting a folder.
+2. Choose a project and open the **Conversation** tab. Type a message and click **Send to AI**. Capri calls the configured AI provider through its existing model router and cloud/free-model restrictions. It only sends **your typed conversation**, not the selected project's files. If the configured provider is cloud-based and cloud consent is enabled, those messages may leave the PC. The **Stop response** button cancels cooperative generation.
+3. The conversation is saved privately with Windows **DPAPI CurrentUser encryption** and reopens after app restart. CLI can access the same session ID and conversation.
+4. In **Read-only project files**, click **Browse folder**. Capri asks for explicit read permission for the **currently selected project and open window**. Approving it allows one-directory-at-a-time filename listing and a separate click to preview one file (maximum 32 KB). Switching projects discards the approval; no file is attached to chat automatically.
+5. Source previews are local text, not AI actions. No project files are written or executed.
 
-## What works now
+### Terminal commands
 
-- In Capri's small chat panel, select **Dev** to open **Developer Workspace**.
-- Choose **Add project folder**. Capri confirms the selected folder exists and stores a bookmark in the current user's private Capri data directory. It does **not** list or read files inside that folder, launch git, invoke AI, or run commands.
-- The GUI lists previously registered folders, their names, and stable UUIDs.
-- CLI commands:
-  - `capri dev list [--json]` — list existing sessions.
-  - `capri dev new "<existing-folder>" [--json]` — explicitly register a new project folder.
-  - `capri dev show <uuid> [--json]` — retrieve one bookmark.
-- A future TUI can use `IDeveloperSessionStore` via the same service contract; this does not claim a working full-screen TUI.
-- Source model: `DeveloperSession` with UUID, label, canonical workspace path and UTC creation time.
-- Storage: `%LOCALAPPDATA%\Capri\developer\sessions\<uuid>.json` unless `CAPRI_DATA_DIR` is set; atomic create-new files, private current-user/SYSTEM/Administrators directory rules reused from task metadata. A selected project directory is never changed.
+```powershell
+capri dev new "C:\Path\To\Project" --json
+capri dev list --json
+capri dev show <session-id> --json
+capri dev history <session-id> --json
+capri dev ask <session-id> "Explain unit testing for my project" --json
+capri dev files <session-id> src --allow-read --json
+capri dev file <session-id> src/Program.cs --allow-read --json
+```
 
-## Boundaries
+Without `--allow-read`, an **interactive** `dev files`/`dev file` asks whether to permit that specific read. A noninteractive call is rejected rather than reading the project. Explicit script flags grant only that single invocation's read; they do not persist permission or grant code execution. `--json` prints messages/preview contents if explicitly requested, so avoid redirecting private content to untrusted logs.
 
-This creates **only a bookmark**. It does not grant Capri permission to browse a folder, inspect secrets, edit code, execute terminals, install extensions, send files to AI, or approve a task. The existing per-user task authority and exact-plan human approval remain the only supported path for executable automation. Future project tools need their own explicit consent and least-privilege scoping.
+### Storage and sharing
 
-- Reparse/junction-linked project folders are refused to avoid silently following redirects.
-- Metadata has a bounded filename/id schema, maximum document size and session limit. Invalid JSON fails visibly, rather than silently removing a session.
-- Read-only session listing doesn't create any new directories.
-- Folder paths are sensitive metadata. Do not send them to a cloud provider or log them automatically. Existing Windows same-user trust limitations still apply.
-- This does not implement shared live coding conversations, Git diff approval, session compaction, Git worktrees, remote access, plugins, agents, or the full-screen developer TUI. See [OpenCode capability roadmap](OPENCODE-CAPABILITY-ROADMAP.md) for the staged implementation.
+- `%LOCALAPPDATA%\Capri\developer\sessions\<id>.json` — UUID, project name, path and creation timestamp. This is private metadata but **not encrypted**; the path should be treated as sensitive.
+- `%LOCALAPPDATA%\Capri\developer\conversations\<id>\<ticks>_<message-id>.bin` — encrypted per-message records. Each is atomically created, bounded, with user/assistant identity and date. Decryption is limited to the current Windows user via DPAPI. A new GUI/CLI instance can read the previous turns.
+- Files/directories use the existing current-user-owned Windows directory policy, with maximum 160 messages per session, each at most 8000 characters. The UI loads the most recent 40; model requests include at most 24 prior turns (bounded context).
+- History is **not automatically deleted or compacted**. Editing/canceling a failed request does not silently delete previously stored user turns. Backup/export, controlled deletion, conflict control and cross-device migration are later design work. DPAPI data cannot simply be copied to a different Windows account.
+- Existing current-Windows-user security restrictions do not defend against every malicious same-user process or TOCTOU path replacement.
 
-## Acceptance completed and remaining
+### Local project read policy
 
-Unit tests verify persistence across service instances, metadata-only creation, missing folder refusal, corrupt JSON failure, bounded naming, and shared CLI JSON output. The solution must pass a Windows Release build and all automated tests. **Manual WPF acceptance** remains required to inspect layout, select a real project via the folder picker and verify cross-client consistency.
+- A saved project session is **not** authorization to inspect its code. The GUI asks by Yes/No and the CLI requires confirmation or `--allow-read` for each request.
+- Browse lists only one directory, at most 120 entries, with hidden/system/reparse paths filtered. Common sensitive directories (`.git`, `node_modules`, `bin`, `obj`, credential/secret folders) are denied. File extensions are allowlisted, and names containing `secret`, `password`, `token`, `credential`, or private-key patterns are excluded.
+- Only text files that pass relative-path containment, directory/component reparse checks and bounded strict UTF-8 decoding can be previewed. Rejects `..` traversal, absolute paths, hidden files, symlinks/junctions, binaries and large files. No recursive scan or automatic prompt context injection.
+- This is a conservative convenience preview, **not a secret scanner or complete DLP system**. A user-authorized source file can still contain secrets; preview it cautiously. Do not send it to a cloud model unless you explicitly choose to paste it yourself.
 
-Next: introduce a deliberately scoped, read-only `workspace.inspect` permission and user-visible project contents preview; then durable conversation sessions and diff proposals with exact-plan approval. Keep the GUI primary, while reusing the same session store in the future TUI.
+### Current verification
+
+Release build and local automated tests cover encryption at rest, cross-instance persistence, chat request history, model failure behavior, consent denial, traversal protection, sensitive path filtering, binary/oversize refusal, UTF-8 BOM handling and CLI parser flag restrictions. An isolated Release CLI smoke uses a temporary Capri data root and disposable project, verifies refusal without consent, confirms one allowed preview, and proves the project folder is unchanged.
+
+**Still required:** GitHub Windows CI for the final branch; manual WPF visual test of folder picker, async send/cancel and cross-client conversation loading; real local-model inference acceptance; a read/write diff approval workflow under the existing M5 task authority. This implementation does **not** deliver OpenCode feature parity or full interactive developer TUI.

@@ -31,6 +31,12 @@ public static class HelpText
           capri dev list [--json]        List saved developer project sessions
           capri dev new <folder>         Save a project-folder bookmark (no file scanning)
           capri dev show <id> [--json]   Show a saved project session
+          capri dev history <id>         View saved conversation history
+          capri dev ask <id> "<text>"    Chat through the configured provider; save messages
+          capri dev files <id> [folder] [--allow-read]
+                                         List eligible project entries (explicit permission)
+          capri dev file <id> <path> [--allow-read]
+                                         Preview one bounded UTF-8 source file
           capri providers test [--json]  Run an actual inference test with the configured provider
           capri task "<request>"         Plan and run a local AI task (interactive approval required)
           capri tasks [--json]           List recent task metadata
@@ -151,13 +157,23 @@ public static class HelpText
                 capri dev list [--json]
                 capri dev new <existing-project-folder> [--json]
                 capri dev show <session-id> [--json]
+                capri dev history <session-id> [--json]
+                capri dev ask <session-id> "<message>" [--json]
+                capri dev files <session-id> [relative-folder] [--allow-read] [--json]
+                capri dev file <session-id> <relative-file> [--allow-read] [--json]
 
-                Registers and lists local developer project sessions, shared by
-                the Windows GUI and future interactive developer TUI. The folder
-                must exist; creation saves only session metadata, not source
-                files, prompts, credentials or commands. No AI model is called
-                and no code is read, written, or executed by these commands.
-                Full coding-agent sessions and developer TUI are not built yet.
+                The Windows GUI and CLI share encrypted, persisted developer
+                conversations. 'ask' uses Capri's configured provider and existing
+                cloud/free-model consent policy; send only data you intend to
+                share with that provider. No project files are attached to chat.
+
+                Project file browsing requires an explicit yes on every terminal
+                request; non-interactive callers must pass --allow-read. Only
+                one directory or a bounded UTF-8 source file is opened; hidden,
+                linked and commonly sensitive files are excluded. The selected
+                project is never edited. No terminal tool execution, file writes
+                or automatic code modification is enabled. The full-screen
+                developer TUI and agentic code editing remain future features.
                 """,
             "chat" => """
                 capri chat
