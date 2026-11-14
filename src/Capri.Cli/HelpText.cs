@@ -28,6 +28,9 @@ public static class HelpText
           capri ask "<question>" [--json]
                                          Send a question to the configured provider
           capri chat                     Interactive chat with the configured provider
+          capri dev list [--json]        List saved developer project sessions
+          capri dev new <folder>         Save a project-folder bookmark (no file scanning)
+          capri dev show <id> [--json]   Show a saved project session
           capri providers test [--json]  Run an actual inference test with the configured provider
           capri task "<request>"         Plan and run a local AI task (interactive approval required)
           capri tasks [--json]           List recent task metadata
@@ -143,6 +146,18 @@ public static class HelpText
                 or `capri config`. Provider errors, missing local models, and consent
                 guards are reported with actionable messages. --json returns safe
                 metadata and text without secrets.
+                """,
+            "dev" => """
+                capri dev list [--json]
+                capri dev new <existing-project-folder> [--json]
+                capri dev show <session-id> [--json]
+
+                Registers and lists local developer project sessions, shared by
+                the Windows GUI and future interactive developer TUI. The folder
+                must exist; creation saves only session metadata, not source
+                files, prompts, credentials or commands. No AI model is called
+                and no code is read, written, or executed by these commands.
+                Full coding-agent sessions and developer TUI are not built yet.
                 """,
             "chat" => """
                 capri chat

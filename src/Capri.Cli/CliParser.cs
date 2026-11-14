@@ -32,6 +32,9 @@ public enum CliCommandKind
     /// <summary>Alias for <see cref="Start"/>.</summary>
     Gui,
 
+    /// <summary>Manage persistent developer project sessions (metadata only).</summary>
+    Dev,
+
     /// <summary>Manage and inspect local/provider models.</summary>
     Models,
 
@@ -106,6 +109,7 @@ public static class CliParser
         "start",
         "gui",
         "models",
+        "dev",
         "ask",
         "chat",
         "providers",
@@ -168,6 +172,9 @@ public static class CliParser
 
             case "models":
                 return ParseModels(args);
+
+            case "dev":
+                return ParseDev(args);
 
             case "ask":
                 return ParseAsk(args);
@@ -342,6 +349,47 @@ public static class CliParser
         {
             Kind = CliCommandKind.Config,
             Arguments = arguments,
+            Json = json,
+        };
+    }
+
+    private static CliInvocation ParseDev(IReadOnlyList<string> args)
+    {
+        if (args.Count < 2)
+            return new CliInvocation { Kind = CliCommandKind.Help, Topic = "dev" };
+
+        var subcommand = args[1].Trim().ToLowerInvariant();
+        if (subcommand == "help" || IsHelpOption(subcommand))
+            return new CliInvocation { Kind = CliCommandKind.Help, Topic = "dev" };
+
+        if (subcommand is not ("list" or "new" or "show"))
+            return UsageError("Unknown developer command. Use list, new, or show. Run 'capri help dev'.");
+
+        var json = false;
+        var positional = new List<string>();
+        for (var i = 2; i < args.Count; i++)
+        {
+            var argument = args[i].Trim();
+            if (IsHelpOption(argument))
+                return new CliInvocation { Kind = CliCommandKind.Help, Topic = "dev" };
+            if (string.Equals(argument, "--json", StringComparison.OrdinalIgnoreCase))
+            {
+                json = true;
+                continue;
+            }
+            if (argument.StartsWith("--", StringComparison.Ordinal))
+                return UsageError("Unsupported developer command option. Run 'capri help dev'.");
+            positional.Add(argument);
+        }
+
+        if ((subcommand == "list" && positional.Count != 0) ||
+            (subcommand != "list" && positional.Count != 1))
+            return UsageError("Usage: capri dev list | new <project-folder> | show <session-id> [--json]");
+
+        return new CliInvocation
+        {
+            Kind = CliCommandKind.Dev,
+            Arguments = [subcommand, .. positional],
             Json = json,
         };
     }

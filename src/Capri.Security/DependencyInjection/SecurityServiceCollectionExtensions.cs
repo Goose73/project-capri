@@ -47,6 +47,9 @@ public static class SecurityServiceCollectionExtensions
                 serviceProvider.GetRequiredService<ICapriPaths>(),
                 serviceProvider.GetService<ILogger<JsonAppSettingsStore>>()));
 
+        services.TryAddSingleton<IDeveloperSessionStore>(serviceProvider =>
+            new FileDeveloperSessionStore(serviceProvider.GetRequiredService<ICapriPaths>()));
+
         services.TryAddSingleton<IPermissionService>(serviceProvider =>
             new DefaultPermissionService(
                 serviceProvider.GetRequiredService<IAppSettingsStore>(),

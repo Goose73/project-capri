@@ -34,6 +34,10 @@ Screen vision is **architecture only** - see [docs/SCREEN-CONTROL-PLAN.md](docs/
 - [Autonomy slice (`/task` + `capri task`, experimental)](docs/AUTONOMY.md)
 - [Hardening status and trust limitations](docs/HARDENING.md)
 
+## Developer workspace (first foundation)
+
+Capri now has a **Dev** button in the WPF chat panel that opens a project-session window, plus `capri dev list|new|show` in the CLI. Both read the same private, UUID-based developer-session bookmarks. Selecting a folder stores metadata only — **no source inspection, model calls, code edits or commands happen** at this stage. A full-screen developer TUI and OpenCode-level coding features are planned, not implemented. See [developer session foundation](docs/DEVELOPER-SESSIONS.md) and the [OpenCode capability roadmap](docs/OPENCODE-CAPABILITY-ROADMAP.md).
+
 ## Implemented features
 
 - **CLI (Milestone 1 + M3 + M4, partial/verified core path)** - `capri start/ask/chat/status/providers test/models list|recommend|use|pull` with Ollama model management and terminal inference (M3 verified). M4 adds `capri task`/`tasks`/`task status|stop|reset-stop|history` with terminal approval UI (implemented; automated + safe CLI control checks verified; **live supervised acceptance pending**). `capri chat` refuses non-interactive stdin (TTY multi-turn/streaming/Ctrl+C cancellation need manual acceptance).

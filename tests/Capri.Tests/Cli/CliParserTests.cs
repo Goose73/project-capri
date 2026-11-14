@@ -134,6 +134,28 @@ public sealed class CliParserTests
     }
 
     [Fact]
+    public void DevDefaultProvidesGuidedHelp()
+    {
+        var invocation = CliParser.Parse(["dev"]);
+        Assert.Equal(CliCommandKind.Help, invocation.Kind);
+        Assert.Equal("dev", invocation.Topic);
+    }
+
+    [Fact]
+    public void DevSessionsParseWithoutSurpriseActions()
+    {
+        var created = CliParser.Parse(["dev", "new", "C:\\Code\\Demo", "--json"]);
+        var list = CliParser.Parse(["dev", "list", "--json"]);
+        var invalid = CliParser.Parse(["dev", "new", "--yes"]);
+        Assert.Equal(CliCommandKind.Dev, created.Kind);
+        Assert.Equal(["new", "C:\\Code\\Demo"], created.Arguments);
+        Assert.True(created.Json);
+        Assert.Equal(CliCommandKind.Dev, list.Kind);
+        Assert.Equal(["list"], list.Arguments);
+        Assert.False(invalid.IsValid);
+    }
+
+    [Fact]
     public void ModelsListParsesJson()
     {
         var invocation = CliParser.Parse(["models", "list", "--json"]);
