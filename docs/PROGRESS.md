@@ -1,8 +1,16 @@
 # Development progress
 
-## 2026-11-14 — First developer-session foundation (local branch, CI pending)
+## 2026-11-14 — Permissioned project reader and persistent developer conversations (PR pending)
 
-Introduced a shared `IDeveloperSessionStore` and `FileDeveloperSessionStore` for bounded UUID project bookmarks in a private per-user directory. The new `capri dev list|new|show` commands and WPF **Dev** window access the same metadata. Project folders are selected explicitly, must exist and must not be linked/reparse paths; no project contents are read or modified, no cloud inference is performed, and no independent executor or approval system was introduced. Added JSON CLI and corruption/metadata unit tests. Local Windows Release build passed with 9 pre-existing analyzer warnings and 0 errors; **689/689 Release tests passed** locally. GitHub PR/CI and manual WPF folder-picker acceptance pending. This is groundwork, **not** working OpenCode-level coding sessions or a TUI. See `docs/DEVELOPER-SESSIONS.md`.
+Implemented an explicit opt-in read-only project browser in the WPF Dev window and CLI: `dev files` lists a single bounded directory, `dev file` previews only a selected small UTF-8 source file. CLI refuses noninteractive reads without `--allow-read`; WPF asks Yes/No for the selected project and clears temporary consent on selection changes. Directory escape, reparse paths, hidden/system files, common credential/secret paths and large/binary content are rejected. No recursive source scanning, code writes, terminal execution or implicit model attachments.
+
+Introduced `IDeveloperConversationStore` with atomic Windows DPAPI CurrentUser–encrypted per-message records, a bounded `DeveloperConversationService` using the existing `IChatProvider`/`IModelRouter` and their cloud/free-model consent rules, WPF Conversation Send/Stop/history UI, and CLI `dev history|ask`. Session chat persists across WPF/CLI instance restarts and only sends the typed user messages and prior conversation to the configured provider, **not source files**. A provider error preserves the user turn but never invents a successful assistant reply.
+
+Local Windows Release build passed with 9 existing analyzer warnings and 0 errors; **711/711 automated tests passed**, including UTF-8 BOM handling and cancellation against an uncooperative provider. GitHub Windows CI and manual WPF/real-provider acceptance are separate gates. Disposable real CLI smoke verified denied reads before consent, allowed source preview, secret filename filtering and unchanged project files. Full OpenCode parity, optional TUI, project-context inclusion and code editing remain future milestones. See `docs/DEVELOPER-SESSIONS.md`.
+
+## 2026-11-14 — First developer-session foundation (merged PR #32; 689 tests passed)
+
+Introduced a shared `IDeveloperSessionStore` and `FileDeveloperSessionStore` for bounded UUID project bookmarks in a private per-user directory. The new `capri dev list|new|show` commands and WPF **Dev** window access the same metadata. Project folders are selected explicitly, must exist and must not be linked/reparse paths; no project contents are read or modified, no cloud inference is performed, and no independent executor or approval system was introduced. Added JSON CLI and corruption/metadata unit tests. Local Windows Release build passed with 9 pre-existing analyzer warnings and 0 errors; **689/689 Release tests passed** locally. Windows CI for PR #32 passed and the branch was merged; manual WPF folder-picker acceptance is still required. This is groundwork, **not** working OpenCode-level coding sessions or a TUI. See `docs/DEVELOPER-SESSIONS.md`.
 
 ## 2026-11-10 — Ambient Companion live Windows webcam integration (PR #30)
 

@@ -84,6 +84,9 @@ public sealed record CliInvocation
     /// <summary>True when explicit confirmation was provided (for example <c>models pull --yes</c>).</summary>
     public bool Yes { get; init; }
 
+    /// <summary>Explicit opt-in for one read-only developer workspace request.</summary>
+    public bool AllowRead { get; init; }
+
     /// <summary>Optional help topic (for example <c>config</c>).</summary>
     public string? Topic { get; init; }
 
@@ -362,10 +365,11 @@ public static class CliParser
         if (subcommand == "help" || IsHelpOption(subcommand))
             return new CliInvocation { Kind = CliCommandKind.Help, Topic = "dev" };
 
-        if (subcommand is not ("list" or "new" or "show"))
-            return UsageError("Unknown developer command. Use list, new, or show. Run 'capri help dev'.");
+        if (subcommand is not ("list" or "new" or "show" or "history" or "ask" or "files" or "file"))
+            return UsageError("Unknown developer command. Use list, new, show, history, ask, files, or file.");
 
         var json = false;
+        var allowRead = false;
         var positional = new List<string>();
         for (var i = 2; i < args.Count; i++)
         {
@@ -377,20 +381,34 @@ public static class CliParser
                 json = true;
                 continue;
             }
+            if (string.Equals(argument, "--allow-read", StringComparison.OrdinalIgnoreCase))
+            {
+                allowRead = true;
+                continue;
+            }
             if (argument.StartsWith("--", StringComparison.Ordinal))
                 return UsageError("Unsupported developer command option. Run 'capri help dev'.");
             positional.Add(argument);
         }
 
-        if ((subcommand == "list" && positional.Count != 0) ||
-            (subcommand != "list" && positional.Count != 1))
-            return UsageError("Usage: capri dev list | new <project-folder> | show <session-id> [--json]");
+        var validCount = subcommand switch
+        {
+            "list" => positional.Count == 0,
+            "files" => positional.Count is 1 or 2,
+            "ask" or "file" => positional.Count == 2,
+            _ => positional.Count == 1
+        };
+        if (!validCount)
+            return UsageError("Use 'capri help dev' for the expected session ID and arguments.");
+        if (allowRead && subcommand is not ("files" or "file"))
+            return UsageError("--allow-read is only supported by 'dev files' and 'dev file'.");
 
         return new CliInvocation
         {
             Kind = CliCommandKind.Dev,
             Arguments = [subcommand, .. positional],
             Json = json,
+            AllowRead = allowRead,
         };
     }
 

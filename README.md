@@ -34,9 +34,9 @@ Screen vision is **architecture only** - see [docs/SCREEN-CONTROL-PLAN.md](docs/
 - [Autonomy slice (`/task` + `capri task`, experimental)](docs/AUTONOMY.md)
 - [Hardening status and trust limitations](docs/HARDENING.md)
 
-## Developer workspace (first foundation)
+## Developer workspace (GUI-first, permissioned read-only preview)
 
-Capri now has a **Dev** button in the WPF chat panel that opens a project-session window, plus `capri dev list|new|show` in the CLI. Both read the same private, UUID-based developer-session bookmarks. Selecting a folder stores metadata only — **no source inspection, model calls, code edits or commands happen** at this stage. A full-screen developer TUI and OpenCode-level coding features are planned, not implemented. See [developer session foundation](docs/DEVELOPER-SESSIONS.md) and the [OpenCode capability roadmap](docs/OPENCODE-CAPABILITY-ROADMAP.md).
+The WPF **Dev** workspace and `capri dev` CLI now share project bookmarks and **DPAPI-encrypted, persistent developer chat**. The Conversation tab sends typed messages through Capri's configured provider; **no project files are attached automatically**. A separate read-only project browser requires an explicit Yes per GUI window/project or a CLI confirmation/`--allow-read` per request. It lists one folder at a time and previews one small, allowlisted UTF-8 text file, excluding common secret, linked and hidden paths. No code edits, arbitrary shell execution, privilege elevation, or automatic task approvals are enabled. A full-screen developer TUI and OpenCode-level coding tools remain planned. See [developer workspace permissions and commands](docs/DEVELOPER-SESSIONS.md) and the [OpenCode capability roadmap](docs/OPENCODE-CAPABILITY-ROADMAP.md).
 
 ## Implemented features
 

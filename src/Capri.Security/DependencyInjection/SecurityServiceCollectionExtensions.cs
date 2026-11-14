@@ -49,6 +49,13 @@ public static class SecurityServiceCollectionExtensions
 
         services.TryAddSingleton<IDeveloperSessionStore>(serviceProvider =>
             new FileDeveloperSessionStore(serviceProvider.GetRequiredService<ICapriPaths>()));
+        services.TryAddSingleton<IDeveloperConversationStore>(serviceProvider =>
+            new FileDeveloperConversationStore(
+                serviceProvider.GetRequiredService<ICapriPaths>(),
+                serviceProvider.GetRequiredService<IDeveloperSessionStore>()));
+        services.TryAddSingleton<IDeveloperWorkspaceReader>(serviceProvider =>
+            new FileDeveloperWorkspaceReader(
+                serviceProvider.GetRequiredService<IDeveloperSessionStore>()));
 
         services.TryAddSingleton<IPermissionService>(serviceProvider =>
             new DefaultPermissionService(

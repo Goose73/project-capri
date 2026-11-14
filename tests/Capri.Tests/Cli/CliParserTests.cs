@@ -156,6 +156,30 @@ public sealed class CliParserTests
     }
 
     [Fact]
+    public void DevChatHistoryAndReadPermissionsAreParsedExplicitly()
+    {
+        var ask = CliParser.Parse(["dev", "ask", "fake-session", "Hello", "--json"]);
+        var history = CliParser.Parse(["dev", "history", "fake-session"]);
+        var names = CliParser.Parse(["dev", "files", "fake-session", "src", "--allow-read"]);
+        var preview = CliParser.Parse(["dev", "file", "fake-session", "src/main.cs", "--allow-read", "--json"]);
+        var rejected = CliParser.Parse(["dev", "ask", "fake-session", "Hello", "--allow-read"]);
+        var missing = CliParser.Parse(["dev", "file", "fake-session"]);
+
+        Assert.True(ask.IsValid);
+        Assert.Equal(["ask", "fake-session", "Hello"], ask.Arguments);
+        Assert.True(ask.Json);
+        Assert.True(history.IsValid);
+        Assert.True(names.AllowRead);
+        Assert.False(names.Json);
+        Assert.Equal(["files", "fake-session", "src"], names.Arguments);
+        Assert.True(preview.IsValid);
+        Assert.True(preview.AllowRead);
+        Assert.True(preview.Json);
+        Assert.False(rejected.IsValid);
+        Assert.False(missing.IsValid);
+    }
+
+    [Fact]
     public void ModelsListParsesJson()
     {
         var invocation = CliParser.Parse(["models", "list", "--json"]);

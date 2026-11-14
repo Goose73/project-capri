@@ -1,5 +1,6 @@
 using Capri.Core.Abstractions;
 using Capri.Core.Autonomy;
+using Capri.Core.Conversation;
 using Capri.Automation.Autonomy;
 using Capri.Security;
 using Capri.Security.Autonomy;
@@ -52,6 +53,7 @@ public static class DesktopServiceCollectionExtensions
         services.TryAddSingleton<CharacterWindow>();
         services.TryAddSingleton<ChatPanelWindow>();
         services.TryAddTransient<SettingsWindow>();
+        services.TryAddTransient<DeveloperConversationService>();
         services.TryAddTransient<DeveloperWorkspaceWindow>();
         services.TryAddSingleton<IOverlayController>(sp => sp.GetRequiredService<CharacterWindow>());
         services.TryAddSingleton<TrayIconService>();
