@@ -51,7 +51,7 @@ public sealed class DeveloperConversationService
         _history.Append(sessionId, ChatRole.User, message);
         var completion = await _provider.CompleteAsync(
             new ChatRequest(messages, ModelId: route.ModelId),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
         if (completion.Error is not null)
             throw new InvalidOperationException(
                 "The provider could not answer. Check provider configuration, consent, and connectivity.");

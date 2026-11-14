@@ -61,9 +61,11 @@ public sealed class DevCommand
         {
             return Fail(invocation.Json, "invalid_message", "Enter a nonempty question of at most 8000 characters.");
         }
-        catch (Exception ex) when (ex is InvalidOperationException or IOException or
-                                   UnauthorizedAccessException or InvalidDataException)
+        catch (Exception)
         {
+            // Provider implementations may throw arbitrary transport errors.
+            // Never expose raw exception strings (potentially sensitive) or
+            // allow them to escape as a CLI crash.
             return Fail(invocation.Json, "chat_failed",
                 "Developer conversation failed. Check saved sessions, model settings, provider consent and local storage.",
                 CliExitCodes.Error);

@@ -81,6 +81,28 @@ public sealed class DeveloperConversationServiceTests
     }
 
     [Fact]
+    public async Task CancelReturnsPromptlyEvenWhenProviderIgnoresCancellation()
+    {
+        using var temp = new TempDirectory();
+        var folder = Path.Combine(temp.Path, "project");
+        Directory.CreateDirectory(folder);
+        var paths = new CapriPaths(temp.Path);
+        var sessions = new FileDeveloperSessionStore(paths);
+        var session = sessions.Create(folder);
+        var store = new FileDeveloperConversationStore(paths, sessions);
+        var provider = new FakeProvider { ShouldBlock = true };
+        var service = new DeveloperConversationService(sessions, store, provider, new FakeRouter());
+        using var cancellation = new CancellationTokenSource();
+
+        var pending = service.SendAsync(session.Id, "Cancel this provider", cancellation.Token);
+        Assert.Single(provider.Requests);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+        var saved = Assert.Single(store.Read(session.Id));
+        Assert.Equal(ChatRole.User, saved.Role);
+    }
+
+    [Fact]
     public async Task MissingModelFailsBeforeAnyConversationMutation()
     {
         using var temp = new TempDirectory();
@@ -111,11 +133,15 @@ public sealed class DeveloperConversationServiceTests
         public string ProviderId => "fake-local";
         public List<ChatRequest> Requests { get; } = [];
         public bool ShouldFail { get; set; }
+        public bool ShouldBlock { get; set; }
 
         public Task<ChatCompletion> CompleteAsync(ChatRequest request,
             CancellationToken cancellationToken = default)
         {
             Requests.Add(request);
+            if (ShouldBlock)
+                return new TaskCompletionSource<ChatCompletion>(
+                    TaskCreationOptions.RunContinuationsAsynchronously).Task;
             if (ShouldFail)
                 return Task.FromResult(new ChatCompletion(
                     new ChatMessage(ChatRole.Assistant, string.Empty),

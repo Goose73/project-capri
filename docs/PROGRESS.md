@@ -6,7 +6,7 @@ Implemented an explicit opt-in read-only project browser in the WPF Dev window a
 
 Introduced `IDeveloperConversationStore` with atomic Windows DPAPI CurrentUser–encrypted per-message records, a bounded `DeveloperConversationService` using the existing `IChatProvider`/`IModelRouter` and their cloud/free-model consent rules, WPF Conversation Send/Stop/history UI, and CLI `dev history|ask`. Session chat persists across WPF/CLI instance restarts and only sends the typed user messages and prior conversation to the configured provider, **not source files**. A provider error preserves the user turn but never invents a successful assistant reply.
 
-Local Release build and 709 automated tests passed before the final UTF-8 BOM regression; final test/CI and manual WPF/real-provider acceptance are pending. Disposable real CLI smoke verified denied reads before consent, allowed source preview, secret filename filtering and unchanged project files. Full OpenCode parity, optional TUI, project-context inclusion and code editing remain future milestones. See `docs/DEVELOPER-SESSIONS.md`.
+Local Windows Release build passed with 9 existing analyzer warnings and 0 errors; **711/711 automated tests passed**, including UTF-8 BOM handling and cancellation against an uncooperative provider. GitHub Windows CI and manual WPF/real-provider acceptance are separate gates. Disposable real CLI smoke verified denied reads before consent, allowed source preview, secret filename filtering and unchanged project files. Full OpenCode parity, optional TUI, project-context inclusion and code editing remain future milestones. See `docs/DEVELOPER-SESSIONS.md`.
 
 ## 2026-11-14 — First developer-session foundation (merged PR #32; 689 tests passed)
 

@@ -146,8 +146,10 @@ public partial class DeveloperWorkspaceWindow : Window
         {
             StatusMessage.Text = "Generation cancelled. Any already-saved user message remains in history.";
         }
-        catch (Exception ex) when (IsLocalFailure(ex))
+        catch (Exception)
         {
+            // Async WPF event handlers must not propagate provider exceptions:
+            // show only a safe recovery hint, never raw credentials/URLs.
             StatusMessage.Text = "AI reply failed. Check model, cloud consent, connectivity and private storage.";
         }
         finally
