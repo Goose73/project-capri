@@ -1,5 +1,9 @@
 # Development progress
 
+## 2026-11-14 — First developer-session foundation (local branch, CI pending)
+
+Introduced a shared `IDeveloperSessionStore` and `FileDeveloperSessionStore` for bounded UUID project bookmarks in a private per-user directory. The new `capri dev list|new|show` commands and WPF **Dev** window access the same metadata. Project folders are selected explicitly, must exist and must not be linked/reparse paths; no project contents are read or modified, no cloud inference is performed, and no independent executor or approval system was introduced. Added JSON CLI and corruption/metadata unit tests. Local Windows Release build passed with 9 pre-existing analyzer warnings and 0 errors; **689/689 Release tests passed** locally. GitHub PR/CI and manual WPF folder-picker acceptance pending. This is groundwork, **not** working OpenCode-level coding sessions or a TUI. See `docs/DEVELOPER-SESSIONS.md`.
+
 ## 2026-11-10 — Ambient Companion live Windows webcam integration (PR #30)
 
 Implemented the first end-to-end Windows camera and local-vision pipeline. The user explicitly enables the preference, presses Start and confirms a fresh session in Capri chat. OpenCvSharp DirectShow samples bounded webcam JPEGs into memory (no video recording), `LocalOllamaAmbientVision` checks installed models and sends images only to `127.0.0.1:11434` with no proxy or redirects. Short model-generated remarks can appear in Capri chat, and separately opted-in remarks can be spoken through offline Windows SAPI. Added start/pause/resume/stop controls, visible CAM ON badge on the character, session-lock and settings-change revocation, cancellation, bounded model responses, quiet cooldown and unit tests. Webcam stays disabled and never auto-starts from saved settings.

@@ -8,6 +8,11 @@ Project Capri is an AI-powered Windows desktop companion (C# / WPF / .NET 10). T
 - [ ] **OpenCode-level developer capabilities in Capri's own product design:** [feature-by-feature audit and architecture](docs/OPENCODE-CAPABILITY-ROADMAP.md). Default Windows WPF assistant for nontechnical users; optional shared-session TUI for developer coding, model switching, diffs, source tools, worktrees, skills/MCP/plugins, context history, undo and safe automation. No separate unauthorised tool engine; all device effects preserve human approval.
 - [ ] **Real account sign-in and local model improvements:** browser sign-in with ChatGPT Plus/Pro only via documented authorized integration and separate from API keys; Ollama/LM Studio model detection, hardware consent and capability-aware recommendations; never scrape browser/OpenCode tokens.
 
+## 2026-11-14 developer-session progress
+
+- [x] **Shared developer-session bookmarks:** protected per-user UUID metadata with explicit existing-project folder selection, read-only listing, WPF Dev workspace screen and CLI `capri dev new|list|show`; Windows Release build and 689 automated tests passed locally. This is **not** general source access or a full TUI. See [implementation and safety limits](docs/DEVELOPER-SESSIONS.md).
+- [ ] **Next developer milestone:** permission-scoped read-only project browser, session transcript persistence, Git status/diff previews, exact-diff user approvals, and a proper optional full-screen developer TUI sharing the same authority. No silent shell/code execution.
+
 ## Current focus
 - [~] **Optional Ambient Companion webcam mode (Windows implementation, physical acceptance pending)** — local-only sampled observations with explicit per-session consent, visible camera indicator and tightly limited spontaneous commentary. Camera snapshot adapter, Ollama multimodal inference, optional chat/voice remarks and visible Stop/Pause controls are implemented in source; physical webcam and GPU acceptance remain pending. See [docs/AMBIENT-COMPANION.md](docs/AMBIENT-COMPANION.md). This is independent of the removed Raspberry Pi Hub.
 

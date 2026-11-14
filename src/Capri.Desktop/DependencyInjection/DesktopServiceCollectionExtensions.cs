@@ -52,6 +52,7 @@ public static class DesktopServiceCollectionExtensions
         services.TryAddSingleton<CharacterWindow>();
         services.TryAddSingleton<ChatPanelWindow>();
         services.TryAddTransient<SettingsWindow>();
+        services.TryAddTransient<DeveloperWorkspaceWindow>();
         services.TryAddSingleton<IOverlayController>(sp => sp.GetRequiredService<CharacterWindow>());
         services.TryAddSingleton<TrayIconService>();
         services.TryAddSingleton<ITaskApproval, WpfTaskApproval>();

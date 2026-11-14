@@ -15,6 +15,7 @@ public sealed class CliApplication
     private readonly StatusCommand _status;
     private readonly DoctorCommand _doctor;
     private readonly ConfigCommand _config;
+    private readonly DevCommand _dev;
     private readonly ModelsCommand? _models;
     private readonly AskCommand _ask;
     private readonly ChatCommand _chat;
@@ -42,6 +43,7 @@ public sealed class CliApplication
         _status = new StatusCommand(console, services, probe);
         _doctor = new DoctorCommand(console, services, probe, dpapiProbe);
         _config = new ConfigCommand(console, services);
+        _dev = new DevCommand(console, new Capri.Security.FileDeveloperSessionStore(services.Paths));
         var ollama = ollamaClient ?? services.OllamaClient;
         _models = ollama is null ? null : new ModelsCommand(console, services, ollama);
         _ask = new AskCommand(console, services);
@@ -98,6 +100,9 @@ public sealed class CliApplication
                 return await _config
                     .ExecuteAsync(invocation.Arguments, invocation.Json, cancellationToken)
                     .ConfigureAwait(false);
+
+            case CliCommandKind.Dev:
+                return _dev.Execute(invocation);
 
             case CliCommandKind.Models:
                 if (_models is null)

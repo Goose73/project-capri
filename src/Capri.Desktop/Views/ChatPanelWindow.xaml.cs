@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
@@ -129,6 +130,22 @@ public partial class ChatPanelWindow : Window
         {
             e.Handled = true;
             Hide();
+        }
+    }
+
+    private void DeveloperWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var window = _serviceProvider.GetRequiredService<DeveloperWorkspaceWindow>();
+            window.Owner = IsVisible ? this : (Owner?.IsVisible == true ? Owner : null);
+            window.ShowDialog();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            MessageBox.Show(this,
+                "Developer workspace could not be opened. No project files were accessed.",
+                "Capri", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 

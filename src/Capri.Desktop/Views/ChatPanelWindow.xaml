@@ -117,6 +117,8 @@
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
                     <Ellipse Width="8" Height="8" Fill="{StaticResource FaceGreen}" Margin="0,0,6,0" VerticalAlignment="Center"/>
                     <TextBlock Text="Capri" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
+                    <Button Content="Dev" Style="{StaticResource DarkButton}" Padding="7,2" Margin="12,0,0,0" FontSize="11"
+                            ToolTip="Open the developer workspace" Click="DeveloperWorkspace_Click"/>
                 </StackPanel>
                 <Button Content="×" DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Padding="8,1" FontSize="14"
                         ToolTip="Hide chat" Click="HideButton_Click"/>
