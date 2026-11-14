@@ -21,9 +21,9 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
-        <SolidColorBrush x:Key="PanelBg" Color="#E6101015"/>
-        <SolidColorBrush x:Key="SurfaceBg" Color="#CC1A1822"/>
-        <SolidColorBrush x:Key="InputBg" Color="#F0151320"/>
+        <SolidColorBrush x:Key="PanelBg" Color="#FA101015"/>
+        <SolidColorBrush x:Key="SurfaceBg" Color="#F41A1822"/>
+        <SolidColorBrush x:Key="InputBg" Color="#F8151320"/>
         <SolidColorBrush x:Key="Magenta" Color="#FF176C"/>
         <SolidColorBrush x:Key="FaceGreen" Color="#00FF65"/>
         <SolidColorBrush x:Key="EyeBlue" Color="#388FFF"/>
