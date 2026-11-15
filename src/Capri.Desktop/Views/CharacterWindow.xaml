@@ -29,7 +29,40 @@
                                 ToolTip="Capri — click to chat, drag to move"
                                 MouseLeftButtonDown="Avatar_MouseLeftButtonDown"
                                 MouseLeftButtonUp="Avatar_MouseLeftButtonUp"
-                                MouseMove="Avatar_MouseMove"/>
+                                MouseMove="Avatar_MouseMove"
+                                ContextMenuOpening="Avatar_ContextMenuOpening">
+            <controls:AvatarControl.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Appear" Tag="Appear" Click="AvatarGesture_Click"/>
+                    <MenuItem Header="Disappear / hide" Tag="Disappear" Click="AvatarGesture_Click"/>
+                    <Separator/>
+                    <MenuItem Header="Look and react">
+                        <MenuItem Header="Look left" Tag="LookLeft" Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Look right" Tag="LookRight" Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Look around" Tag="LookAround" Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Turn towards screen (animation only)" Tag="TurnToScreen"
+                                  ToolTip="This is a visual gesture; it does not capture or inspect your screen."
+                                  Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Lean closer" Tag="LeanIn" Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Nod" Tag="Nod" Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Shake head" Tag="Shake" Click="AvatarGesture_Click"/>
+                    </MenuItem>
+                    <MenuItem Header="Move and celebrate">
+                        <MenuItem Header="Step left" Tag="WalkLeft" Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Step right" Tag="WalkRight" Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Hop" Tag="Hop" Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Jump" Tag="Jump" Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Wave (body gesture)" Tag="Wave" Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Celebrate" Tag="Celebrate" Click="AvatarGesture_Click"/>
+                    </MenuItem>
+                    <MenuItem Header="Facial clips (need artwork)">
+                        <MenuItem Header="Blink" Tag="Blink" Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Side-eye" Tag="SideEye" Click="AvatarGesture_Click"/>
+                        <MenuItem Header="Talk mouth" Tag="MouthSpeak" Click="AvatarGesture_Click"/>
+                    </MenuItem>
+                </ContextMenu>
+            </controls:AvatarControl.ContextMenu>
+        </controls:AvatarControl>
         <Border x:Name="WebcamActiveBadge" Visibility="Collapsed"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
                 Margin="0,5,6,0" Padding="7,4"

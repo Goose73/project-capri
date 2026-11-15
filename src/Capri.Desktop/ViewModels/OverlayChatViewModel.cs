@@ -36,6 +36,9 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<ChatMessageViewModel> Messages { get; } = [];
 
+    /// <summary>Actual typed user submission; does not imply a heard wake word.</summary>
+    public event Action<string>? UserTextSubmitted;
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
@@ -124,6 +127,11 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
         {
             return;
         }
+
+        // This is a typed message only; visual cues never imply microphone or
+        // screen-reading permission. Observer failures must not block chat.
+        try { UserTextSubmitted?.Invoke(text); }
+        catch (Exception ex) { LogUnexpectedChatFailure(_logger, ex); }
 
         // Do not block local providers that require no API key. Missing/invalid credentials
         // are surfaced as friendly provider errors (including turn correlation) by the pipeline.

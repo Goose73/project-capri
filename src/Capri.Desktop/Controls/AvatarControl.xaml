@@ -17,6 +17,18 @@
                     <RotateTransform x:Name="MotionRotate" Angle="0"/>
                 </TransformGroup>
             </Grid.RenderTransform>
+            <!-- A transient afterimage reuses the same authorized Capri sprite.
+                 It is presentation only, never a substitute face/character. -->
+            <Image x:Name="EchoImage" Stretch="Uniform" Opacity="0"
+                   IsHitTestVisible="False"
+                   RenderOptions.BitmapScalingMode="HighQuality">
+                <Image.RenderTransform>
+                    <TranslateTransform x:Name="EchoTranslate" X="4" Y="-1"/>
+                </Image.RenderTransform>
+                <Image.Effect>
+                    <DropShadowEffect Color="#FF176C" ShadowDepth="0" BlurRadius="4" Opacity="0.45"/>
+                </Image.Effect>
+            </Image>
             <Image x:Name="AvatarImage"
                    Stretch="Uniform"
                    RenderOptions.BitmapScalingMode="HighQuality"
