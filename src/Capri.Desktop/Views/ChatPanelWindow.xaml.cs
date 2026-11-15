@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using Capri.Core.Avatar;
 using Capri.Desktop.Interop;
 using Capri.Desktop.Services;
 using Capri.Desktop.ViewModels;
@@ -35,6 +36,8 @@ public partial class ChatPanelWindow : Window
 
         SourceInitialized += OnSourceInitialized;
         _viewModel.Messages.CollectionChanged += (_, _) => Dispatcher.BeginInvoke(ScrollMessagesToEnd);
+        _viewModel.UserTextSubmitted += OnTypedUserTextSubmitted;
+        Closed += (_, _) => _viewModel.UserTextSubmitted -= OnTypedUserTextSubmitted;
         IsVisibleChanged += (_, e) =>
         {
             if (e.NewValue is true)
@@ -133,6 +136,25 @@ public partial class ChatPanelWindow : Window
         {
             e.Handled = true;
             Hide();
+        }
+    }
+
+    private void OnTypedUserTextSubmitted(string text)
+    {
+        // Only an actual typed message triggers this. There is no live
+        // microphone wake-word listener or screen-capture permission here.
+        var gesture = AvatarGestureTextCueParser.Parse(text);
+        if (gesture is not { } cue) return;
+
+        if (Owner is CharacterWindow character)
+            character.QueueUserGesture(cue);
+
+        if (cue == AvatarGesture.TurnToScreen)
+        {
+            _viewModel.Messages.Add(new ChatMessageViewModel(
+                "System",
+                "Capri can turn toward the screen, but screen capture/inspection " +
+                "is not connected. No screen content was accessed."));
         }
     }
 

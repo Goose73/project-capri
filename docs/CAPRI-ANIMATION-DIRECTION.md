@@ -13,6 +13,14 @@ Contemporary coverage describes Capri as an **effect-like, digital entity with d
 
 **Artwork and rights:** retain approved, user-supplied private sprite assets from `design/assets/capri/` and [the asset specification](../design/CAPRI-ASSET-SPEC.md). Do **not** copy animation frames/clips from the series, publish private reference images or add unlicensed character artwork to the public repo. Adapt mannerisms using authorised original keyframes/rigs supplied or approved by the user. No new artwork has been created or shipped in this increment.
 
+## 2026-11-15 implementation update
+
+A new first-stage WPF gesture engine and [private-artwork frame specification](AVATAR-ANIMATION-CLIPS.md) have been implemented. The companion can now perform bounded single-sprite keyframe arrival/disappear, look left/right/around, nod, shake, hop/jump, step/walk, lean, screen-facing visual gesture, body-wave and celebrate. It performs occasional idle gestures (off when hidden, sleeping or Reduce Motion is on) and its successful/error/surprised reactions follow the **real avatar state machine**. An original-asset frame sequence loader permits illustrated blink, side-eye and mouth-cycling when corresponding private PNG frames exist; the current machine has **only an idle sprite**, so high-fidelity independent facial articulation is **not** yet possible.
+
+Exact **typed** chat cues `hey capri` and `look at my screen` are visual reactions only. Spoken hotword listening is **not wired**, and a screen-looking gesture displays an explanation that **no screen capture or inspection occurred**. A right-click preview menu lets users test the gestures without requiring a microphone or vision.
+
+**Not yet fulfilled:** separate head/eyes/eyebrows/mouth/arms/legs rigging, phoneme-accurate speech, original animated key poses matching the show, confirmed show-faithful visual comparison and live screen/voice-driven movement. None should be claimed as working merely because the choreography code compiles.
+
 ## Implemented in the current source increment
 
 - Pure `Capri.Core.Avatar.AvatarMotionPlanner` selects bounded, different whole-sprite movements for idle, listening, thinking, talking, success/happy, error/annoyed and surprised states. State selection is deterministic, testable and never asserts a tool was used.

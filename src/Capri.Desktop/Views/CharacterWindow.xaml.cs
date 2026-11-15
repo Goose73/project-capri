@@ -1,11 +1,13 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Capri.Core.Abstractions;
+using Capri.Core.Avatar;
 using Capri.Core.Models;
 using Capri.Desktop.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +35,14 @@ public partial class CharacterWindow : Window, IOverlayController
     private readonly IAppSettingsStore _settingsStore;
     private readonly ILogger<CharacterWindow> _logger;
     private readonly DispatcherTimer _saveDebounceTimer;
+    private readonly DispatcherTimer _idleCueTimer;
+    private static readonly AvatarGesture[] IdleCues =
+    [
+        AvatarGesture.LookLeft, AvatarGesture.LookRight, AvatarGesture.Nod,
+        AvatarGesture.LookAround, AvatarGesture.LeanIn, AvatarGesture.Wave
+    ];
+    private int _idleCueIndex;
+    private AvatarGesture? _queuedUserCue;
     private ChatPanelWindow? _chatPanel;
     private bool _allowClose;
     private bool _hasValidPosition;
@@ -70,6 +80,13 @@ public partial class CharacterWindow : Window, IOverlayController
             Interval = TimeSpan.FromMilliseconds(500)
         };
         _saveDebounceTimer.Tick += SaveDebounceTimer_Tick;
+        // Low-frequency idle stage business; no timer runs when the avatar is
+        // hidden, sleeping, or Reduce Motion is enabled.
+        _idleCueTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromSeconds(13)
+        };
+        _idleCueTimer.Tick += IdleCueTimer_Tick;
 
         SourceInitialized += OnSourceInitialized;
         IsVisibleChanged += OnIsVisibleChanged;
@@ -91,7 +108,27 @@ public partial class CharacterWindow : Window, IOverlayController
     {
         if (e.PropertyName == nameof(AvatarPresentationService.DisplayState))
         {
-            Dispatcher.BeginInvoke(() => Avatar.State = _avatarPresentation.DisplayState);
+            Dispatcher.BeginInvoke(() =>
+            {
+                var state = _avatarPresentation.DisplayState;
+                Avatar.State = state;
+                // Each cue is tied to a real state transition or a user-supplied
+                // text request. It never asserts that a computer task succeeded
+                // unless the shared avatar state actually reports Success.
+                if (state == AvatarState.Thinking && _queuedUserCue is { } pending)
+                {
+                    _queuedUserCue = null;
+                    Avatar.PlayGesture(pending);
+                }
+                else if (state == AvatarState.Success)
+                    Avatar.PlayGesture(AvatarGesture.Celebrate);
+                else if (state == AvatarState.Happy)
+                    Avatar.PlayGesture(AvatarGesture.Hop);
+                else if (state is AvatarState.Error or AvatarState.Annoyed)
+                    Avatar.PlayGesture(AvatarGesture.Shake);
+                else if (state == AvatarState.Surprised)
+                    Avatar.PlayGesture(AvatarGesture.Jump);
+            });
         }
         else if (e.PropertyName == nameof(AvatarPresentationService.ReduceMotion))
         {
@@ -129,9 +166,12 @@ public partial class CharacterWindow : Window, IOverlayController
             }
 
             ClampToCurrentMonitor();
+            _idleCueTimer.Start();
         }
         else
         {
+            _idleCueTimer.Stop();
+            _queuedUserCue = null;
             // A hidden Capri cannot show its camera indicator: revoke consent before hiding.
             _ambient.Stop();
             // Hiding the companion hides the chat panel; tray toggle remains coherent.
@@ -175,6 +215,8 @@ public partial class CharacterWindow : Window, IOverlayController
     {
         _saveDebounceTimer.Stop();
         _saveDebounceTimer.Tick -= SaveDebounceTimer_Tick;
+        _idleCueTimer.Stop();
+        _idleCueTimer.Tick -= IdleCueTimer_Tick;
         _settingsStore.Changed -= SettingsStore_Changed;
         _avatarPresentation.PropertyChanged -= AvatarPresentation_PropertyChanged;
         _ambient.PropertyChanged -= Ambient_PropertyChanged;
@@ -196,8 +238,10 @@ public partial class CharacterWindow : Window, IOverlayController
 
         Avatar.Height = avatarHeight;
         Avatar.Width = avatarWidth;
-        Width = Math.Max(avatarWidth + 10, 120);
-        Height = Math.Max(avatarHeight + 20, 170);
+        // Keep transparent travel space around the image so 14px steps and
+        // 22px hops do not clip Capri's hair or the private artwork silhouette.
+        Width = Math.Max(avatarWidth + 52, 150);
+        Height = Math.Max(avatarHeight + 48, 190);
     }
 
     private void RestoreOrPlaceDefault(AppSettings settings)
@@ -438,6 +482,73 @@ public partial class CharacterWindow : Window, IOverlayController
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Failed to persist companion window placement.")]
     private static partial void LogPersistPlacementFailed(ILogger logger, Exception exception);
+
+    private void IdleCueTimer_Tick(object? sender, EventArgs e)
+    {
+        if (!IsVisible || _isDragging || _mouseDownOnAvatar ||
+            _avatarPresentation.ReduceMotion ||
+            _avatarPresentation.DisplayState != AvatarState.Idle)
+            return;
+
+        var cue = IdleCues[_idleCueIndex++ % IdleCues.Length];
+        Avatar.PlayGesture(cue);
+    }
+
+    /// <summary>
+    /// This is a typed cue, NOT a microphone wake word or screen observation.
+    /// On the next real Thinking state, perform the requested attention pose.
+    /// </summary>
+    public void QueueUserGesture(AvatarGesture gesture)
+    {
+        if (gesture == AvatarGesture.Appear)
+        {
+            Avatar.PlayGesture(gesture);
+            return;
+        }
+        _queuedUserCue = gesture;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_queuedUserCue == gesture && _avatarPresentation.DisplayState != AvatarState.Thinking)
+            {
+                _queuedUserCue = null;
+                Avatar.PlayGesture(gesture);
+            }
+        }, DispatcherPriority.Background);
+    }
+
+    private void Avatar_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        // Artwork-dependent facial clips are disabled when no cleared frame
+        // sequence is installed. Reduce Motion disables all gesture entries.
+        if (Avatar.ContextMenu is null) return;
+        SetGestureMenuAvailability(Avatar.ContextMenu.Items);
+    }
+
+    private void SetGestureMenuAvailability(ItemCollection items)
+    {
+        foreach (var item in items)
+        {
+            if (item is not MenuItem menu) continue;
+            if (menu.Tag is string name &&
+                Enum.TryParse<AvatarGesture>(name, ignoreCase: false, out var cue))
+                menu.IsEnabled = Avatar.CanPerformGesture(cue);
+            if (menu.HasItems)
+                SetGestureMenuAvailability(menu.Items);
+        }
+    }
+
+    private void AvatarGesture_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string name } ||
+            !Enum.TryParse<AvatarGesture>(name, out var cue))
+            return;
+
+        if (cue == AvatarGesture.Disappear)
+            Avatar.PlayGesture(cue, HideOverlay);
+        else
+            Avatar.PlayGesture(cue);
+        e.Handled = true;
+    }
 
     private void Avatar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {

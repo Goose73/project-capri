@@ -1,5 +1,11 @@
 # Development progress
 
+## 2026-11-15 — Character animation gesture clips and preview menu (feature PR pending)
+
+Added a pure `AvatarGesturePlanner` (18 enum gestures, bounded non-strobe multi-pose keyframes, reduced-motion guard), a precise **typed-text only** cue parser, and a WPF gesture player in `AvatarControl`. The current approved local idle sprite is animated via keyframe X/Y, tilt, stretch, opacity, and a short magenta afterimage of the **same sprite**. Optional user-cleared PNG frame clips are loaded by exact name and bounded count/size for real illustrated eye and mouth variants; no new character art was added or published. Manual right-click gesture menu includes look-around, screen-turn (*visual only*), nod, shake, step, jump, hop, wave, celebrate, appear/disappear; missing-artwork facial options are disabled. Low-frequency idle glances are paused when hidden/busy or in Reduce Motion. Success/Happy/Error/Surprised now play distinct gestures only when real avatar state changes. `hey capri` and `look at my screen` **typed in chat** trigger visual cues, with a text notice that no screen inspection occurs. Real voice hotword or permissioned screen capture is NOT implemented.
+
+No unlicensed anime artwork, automatic user-device actions, voice recording, screen capture, account credentials or backend authority changes. Character window adds a transparent animation margin to avoid clipping. Local Windows Release build initially passed with 761/761 automated tests; final verification after minor cleanup, GitHub CI, merge and visual acceptance still required. Documentation: `docs/AVATAR-ANIMATION-CLIPS.md`.
+
 ## 2026-11-14 — Fix local AI connection errors and chat-panel layout (in progress)
 
 User-supplied screenshot shows Capri chat error and cramped controls. Inspected local logs rather than guessing: the installed Ollama model provider (`qwen3:4b-instruct`, `http://localhost:11434/v1`) returned repeated Windows connection-refused errors because no Ollama process was listening. Started the already installed local Ollama server without downloading a model or changing credentials. Verified HTTP `/api/tags` lists both local Qwen models; real `capri providers test --json` returned `ok:true` (model did not reproduce exact health-check phrase), and `capri ask` produced a coherent compiler explanation with `ok:true`.
