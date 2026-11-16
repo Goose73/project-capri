@@ -210,6 +210,9 @@ public sealed class ModelsCommand
                     ramGb = hardware.RamGb,
                     gpuName = hardware.GpuName,
                     vramGbEstimate = hardware.VramGbEstimate,
+                    vramGbFree = hardware.FreeVramGb,
+                    vramSource = hardware.VramSource,
+                    vramVerified = hardware.VramSource == "NVIDIA driver (nvidia-smi)",
                     diskFreeGb = hardware.DiskFreeGb,
                     estimates = true,
                     note = hardware.Note,
@@ -238,7 +241,9 @@ public sealed class ModelsCommand
         _console.WriteLine($"  CPU logical cores: {hardware.LogicalCores?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}");
         _console.WriteLine($"  RAM:               {FormatGb(hardware.RamGb)}");
         _console.WriteLine($"  GPU:               {hardware.GpuName ?? "unknown"}");
-        _console.WriteLine($"  VRAM (estimate):   {FormatGb(hardware.VramGbEstimate)}");
+        _console.WriteLine($"  Dedicated VRAM:    {FormatGb(hardware.VramGbEstimate)}");
+        _console.WriteLine($"  VRAM free now:     {FormatGb(hardware.FreeVramGb)}");
+        _console.WriteLine($"  VRAM source:       {hardware.VramSource ?? "unavailable"}");
         _console.WriteLine($"  Disk free:         {FormatGb(hardware.DiskFreeGb)}");
         if (!string.IsNullOrWhiteSpace(hardware.Note))
         {
@@ -564,15 +569,9 @@ public sealed class ModelsCommand
 
     private static bool IsInstalled(string candidateName, HashSet<string> installed)
     {
-        if (installed.Contains(candidateName))
-        {
-            return true;
-        }
-
-        var baseName = candidateName.Split(':')[0];
-        return installed.Any(name =>
-            string.Equals(name, baseName, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(name.Split(':')[0], baseName, StringComparison.OrdinalIgnoreCase));
+        // Tags are different model variants/sizes. Having qwen3.5:4b does
+        // NOT mean qwen3.5:2b is installed (and it cannot be used by that tag).
+        return installed.Contains(candidateName);
     }
 
     private static string FormatBytes(long? bytes)
@@ -679,7 +678,9 @@ internal sealed record HardwareInfo(
     string? GpuName,
     double? VramGbEstimate,
     double? DiskFreeGb,
-    string? Note)
+    string? Note,
+    string? VramSource = null,
+    double? FreeVramGb = null)
 {
     public static HardwareInfo Detect()
     {
@@ -717,66 +718,17 @@ internal sealed record HardwareInfo(
         }
 
         if (!ramGb.HasValue) noteParts.Add("Physical RAM could not be measured");
-        var (gpuName, vramGb) = TryDetectGpu();
-        if (gpuName is null)
-        {
-            noteParts.Add("GPU/VRAM detection unavailable; values shown as estimates where inferred");
-        }
-        else if (!vramGb.HasValue)
-        {
-            noteParts.Add("VRAM size not reported by adapter; estimate may be inaccurate");
-        }
+        var gpu = GpuHardwareProbe.Detect();
+        if (gpu.Name is null)
+            noteParts.Add("Physical GPU/VRAM could not be identified");
+        else if (!gpu.DedicatedVramGb.HasValue)
+            noteParts.Add("Dedicated GPU VRAM is unverified");
+        if (!string.IsNullOrWhiteSpace(gpu.Note))
+            noteParts.Add(gpu.Note);
 
         var note = noteParts.Count > 0 ? string.Join("; ", noteParts) + "." : null;
-        return new HardwareInfo(cores, ramGb, gpuName, vramGb, diskGb, note);
-    }
-
-    private static (string? Name, double? VramGb) TryDetectGpu()
-    {
-        try
-        {
-            var output = RunProcess(
-                "powershell",
-                "-NoProfile -NonInteractive -Command \"Get-CimInstance Win32_VideoController | Select-Object -First 1 Name,AdapterRAM | ConvertTo-Json -Compress\"",
-                TimeSpan.FromSeconds(3));
-            if (string.IsNullOrWhiteSpace(output))
-            {
-                return (null, null);
-            }
-
-            using var doc = System.Text.Json.JsonDocument.Parse(output);
-            var root = doc.RootElement;
-            if (root.ValueKind == System.Text.Json.JsonValueKind.Array && root.GetArrayLength() > 0)
-            {
-                root = root[0];
-            }
-
-            string? name = null;
-            if (root.TryGetProperty("Name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
-            {
-                name = nameProp.GetString();
-            }
-
-            double? vram = null;
-            if (root.TryGetProperty("AdapterRAM", out var ramProp)
-                && ramProp.ValueKind == System.Text.Json.JsonValueKind.Number
-                && ramProp.TryGetInt64(out var ramBytes)
-                && ramBytes > 0)
-            {
-                vram = ramBytes / (1024d * 1024d * 1024d);
-                // WMI AdapterRAM can be reported as 32-bit; treat very small/odd values cautiously.
-                if (vram > 128)
-                {
-                    vram = null;
-                }
-            }
-
-            return (name, vram);
-        }
-        catch
-        {
-            return (null, null);
-        }
+        return new HardwareInfo(cores, ramGb, gpu.Name, gpu.DedicatedVramGb,
+            diskGb, note, gpu.Source, gpu.FreeVramGb);
     }
 
     private static string? RunProcess(string fileName, string arguments, TimeSpan timeout)

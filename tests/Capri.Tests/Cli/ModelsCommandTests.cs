@@ -43,6 +43,7 @@ public sealed class ModelsCommandTests
         Assert.Contains(candidates, c => c.GetProperty("name").GetString() == "phi4-mini");
         Assert.Contains(candidates, c => c.GetProperty("name").GetString() == "gemma3:4b");
         Assert.Contains(candidates, c => c.GetProperty("name").GetString() == "qwen3.5:2b");
+        Assert.DoesNotContain(candidates, c => c.GetProperty("name").GetString() == "qwen3.5:2b" && c.GetProperty("installed").GetBoolean());
         Assert.True(doc.RootElement.GetProperty("hardware").GetProperty("estimates").GetBoolean());
     }
 

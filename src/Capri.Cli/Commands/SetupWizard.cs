@@ -180,7 +180,9 @@ public sealed class SetupWizard
         _console.WriteLine($"  CPU logical cores: {info.LogicalCores?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}");
         _console.WriteLine($"  RAM:               {FormatGb(info.RamGb)} (estimate when unavailable)");
         _console.WriteLine($"  GPU:               {info.GpuName ?? "unknown"}");
-        _console.WriteLine($"  VRAM:              {FormatGb(info.VramGbEstimate)} (best-effort estimate)");
+        _console.WriteLine($"  Dedicated VRAM:    {FormatGb(info.VramGbEstimate)}");
+        _console.WriteLine($"  VRAM free now:     {FormatGb(info.FreeVramGb)}");
+        _console.WriteLine($"  VRAM source:       {info.VramSource ?? "unavailable"}");
         _console.WriteLine($"  Disk free:         {FormatGb(info.DiskFreeGb)}");
         if (!string.IsNullOrWhiteSpace(info.Note))
         {
