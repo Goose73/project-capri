@@ -569,15 +569,9 @@ public sealed class ModelsCommand
 
     private static bool IsInstalled(string candidateName, HashSet<string> installed)
     {
-        if (installed.Contains(candidateName))
-        {
-            return true;
-        }
-
-        var baseName = candidateName.Split(':')[0];
-        return installed.Any(name =>
-            string.Equals(name, baseName, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(name.Split(':')[0], baseName, StringComparison.OrdinalIgnoreCase));
+        // Tags are different model variants/sizes. Having qwen3.5:4b does
+        // NOT mean qwen3.5:2b is installed (and it cannot be used by that tag).
+        return installed.Contains(candidateName);
     }
 
     private static string FormatBytes(long? bytes)
