@@ -96,14 +96,23 @@
                         </Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Margin="0,0,0,9"
                                    FontSize="12" Foreground="#B8B0C8"
-                                   Text="Messages are saved privately and encrypted on this PC. Sending uses your selected AI provider; cloud providers may receive the conversation. No project files are automatically attached."/>
+                                   Text="Conversation text is encrypted locally. Your AI provider receives typed messages; cloud providers can receive data externally. Files are NEVER included unless you select one and explicitly confirm its upload."/>
                         <TextBox Grid.Row="1" x:Name="ConversationBox"
                                  IsReadOnly="True" AcceptsReturn="True"
                                  FontFamily="Consolas" FontSize="12"
                                  VerticalScrollBarVisibility="Auto"/>
-                        <TextBox Grid.Row="2" x:Name="MessageInput" Height="76"
-                                 AcceptsReturn="True" Margin="0,10,0,10"
-                                 ToolTip="Enter the message you want to send to your configured AI model."/>
+                        <StackPanel Grid.Row="2" Margin="0,9,0,8">
+                            <TextBox x:Name="MessageInput" Height="72" AcceptsReturn="True"
+                                     ToolTip="Enter the message you want to send to your configured AI model."/>
+                            <CheckBox x:Name="AttachSourceCheckbox" Margin="0,8,0,3"
+                                      IsChecked="False" IsEnabled="False"
+                                      Foreground="#F8F5FF">
+                                <TextBlock Text="Include selected source file in this one AI question (asks again before sending)"
+                                           TextWrapping="Wrap" Foreground="#F8F5FF"/>
+                            </CheckBox>
+                            <TextBlock x:Name="SelectedSourceText" Text="No source file selected. Preview a file in the project files tab first."
+                                       FontSize="11" Foreground="#B8B0C8"/>
+                        </StackPanel>
                         <WrapPanel Grid.Row="3">
                             <Button x:Name="SendButton" Content="Send to AI" Click="Send_Click"/>
                             <Button Content="Stop response" Click="CancelReply_Click"/>
@@ -122,7 +131,7 @@
                         </Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" FontSize="12" Foreground="#B8B0C8"
                                    Margin="0,0,0,10"
-                                   Text="Nothing is browsed automatically. Approve a local read for this window to list one folder or preview one file. Hidden, linked, sensitive and oversized files are blocked; previews are never sent to AI."/>
+                                   Text="Nothing is browsed automatically. Approve local read access and preview an eligible file. To share it with AI, return to Conversation, check the source box and approve the separate send confirmation. Only one file, up to 8,000 characters, can be shared per question."/>
                         <DockPanel Grid.Row="1" Margin="0,0,0,9">
                             <Button DockPanel.Dock="Right" Content="Browse folder" Click="BrowseFolder_Click" Margin="8,0,0,0"/>
                             <TextBox x:Name="RelativeFolderBox" ToolTip="Relative folder inside selected project; leave empty for root."/>

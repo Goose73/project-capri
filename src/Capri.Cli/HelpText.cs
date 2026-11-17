@@ -33,6 +33,8 @@ public static class HelpText
           capri dev show <id> [--json]   Show a saved project session
           capri dev history <id>         View saved conversation history
           capri dev ask <id> "<text>"    Chat through the configured provider; save messages
+          capri dev ask <id> "<text>" --context <file> --allow-read --send-context
+                                         Send exactly one approved source file with this question
           capri dev files <id> [folder] [--allow-read]
                                          List eligible project entries (explicit permission)
           capri dev file <id> <path> [--allow-read]
@@ -159,13 +161,21 @@ public static class HelpText
                 capri dev show <session-id> [--json]
                 capri dev history <session-id> [--json]
                 capri dev ask <session-id> "<message>" [--json]
+                capri dev ask <session-id> "<message>" --context <relative-file> --allow-read --send-context [--json]
                 capri dev files <session-id> [relative-folder] [--allow-read] [--json]
                 capri dev file <session-id> <relative-file> [--allow-read] [--json]
 
                 The Windows GUI and CLI share encrypted, persisted developer
                 conversations. 'ask' uses Capri's configured provider and existing
                 cloud/free-model consent policy; send only data you intend to
-                share with that provider. No project files are attached to chat.
+                share with that provider. No project files are attached by default.
+                To include ONE eligible local source file in ONE explicit question,
+                specify --context <relative-file> --allow-read --send-context
+                together. This acknowledges both local reading and sharing with
+                your configured model. Cloud models can transmit this content
+                outside your computer. Secret data may exist in ordinary files.
+                Source content is never added to saved conversation history, but
+                the AI provider can process it and its answer may refer to it.
 
                 Project file browsing requires an explicit yes on every terminal
                 request; non-interactive callers must pass --allow-read. Only

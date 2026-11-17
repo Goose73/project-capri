@@ -48,8 +48,25 @@ public sealed class DevCommand
             if (!TryId(invocation.Arguments[1], out var sessionId))
                 return Fail(invocation.Json, "invalid_id", "Enter a valid developer session ID.");
 
-            var response = await _chat.SendAsync(
-                sessionId, invocation.Arguments[2], cancellationToken).ConfigureAwait(false);
+            DeveloperSourceContext? approvedSource = null;
+            if (invocation.ContextFile is { } relativeFile)
+            {
+                // Three explicit switches for one file. A saved session never
+                // grants implicit project reading or provider transmission.
+                if (!invocation.AllowRead || !invocation.SendContext || _reader is null)
+                    return Fail(invocation.Json, "context_consent_required",
+                        "Source context requires --context <file> --allow-read --send-context.");
+
+                var sourceText = _reader.ReadText(sessionId, relativeFile, authorized: true);
+                if (sourceText.Length > 8000)
+                    return Fail(invocation.Json, "context_too_large",
+                        "Only source files up to 8000 characters can be sent to AI.");
+                approvedSource = new DeveloperSourceContext(sessionId, relativeFile, sourceText);
+            }
+
+            var response = await _chat.SendWithSourceAsync(
+                sessionId, invocation.Arguments[2], approvedSource,
+                cancellationToken).ConfigureAwait(false);
             if (invocation.Json)
                 _console.WriteLine(JsonOutput.Serialize(new { ok = true, response }));
             else
