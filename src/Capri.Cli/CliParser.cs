@@ -87,6 +87,12 @@ public sealed record CliInvocation
     /// <summary>Explicit opt-in for one read-only developer workspace request.</summary>
     public bool AllowRead { get; init; }
 
+    /// <summary>One explicitly selected source file for the dev ask command.</summary>
+    public string? ContextFile { get; init; }
+
+    /// <summary>Explicit permission to send that file to the configured AI.</summary>
+    public bool SendContext { get; init; }
+
     /// <summary>Optional help topic (for example <c>config</c>).</summary>
     public string? Topic { get; init; }
 
@@ -370,6 +376,8 @@ public static class CliParser
 
         var json = false;
         var allowRead = false;
+        var sendContext = false;
+        string? contextFile = null;
         var positional = new List<string>();
         for (var i = 2; i < args.Count; i++)
         {
@@ -386,6 +394,20 @@ public static class CliParser
                 allowRead = true;
                 continue;
             }
+            if (string.Equals(argument, "--send-context", StringComparison.OrdinalIgnoreCase))
+            {
+                sendContext = true;
+                continue;
+            }
+            if (string.Equals(argument, "--context", StringComparison.OrdinalIgnoreCase))
+            {
+                if (contextFile is not null || i + 1 >= args.Count ||
+                    string.IsNullOrWhiteSpace(args[i + 1]) ||
+                    args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                    return UsageError("--context needs exactly one relative source filename.");
+                contextFile = args[++i];
+                continue;
+            }
             if (argument.StartsWith("--", StringComparison.Ordinal))
                 return UsageError("Unsupported developer command option. Run 'capri help dev'.");
             positional.Add(argument);
@@ -400,8 +422,15 @@ public static class CliParser
         };
         if (!validCount)
             return UsageError("Use 'capri help dev' for the expected session ID and arguments.");
-        if (allowRead && subcommand is not ("files" or "file"))
-            return UsageError("--allow-read is only supported by 'dev files' and 'dev file'.");
+        if (subcommand == "ask")
+        {
+            if ((contextFile is not null || sendContext || allowRead) &&
+                (contextFile is null || !sendContext || !allowRead))
+                return UsageError("To attach one source file, use --context <relative-file> --allow-read --send-context together.");
+        }
+        else if (contextFile is not null || sendContext ||
+                 (allowRead && subcommand is not ("files" or "file")))
+            return UsageError("Developer source sharing options are only valid with 'dev ask'.");
 
         return new CliInvocation
         {
@@ -409,6 +438,8 @@ public static class CliParser
             Arguments = [subcommand, .. positional],
             Json = json,
             AllowRead = allowRead,
+            ContextFile = contextFile,
+            SendContext = sendContext,
         };
     }
 
