@@ -20,6 +20,7 @@ public partial class DeveloperWorkspaceWindow : Window
     private readonly IDeveloperWorkspaceReader _files;
     private readonly DeveloperConversationService _chat;
     private Guid? _readApprovedSessionId;
+    private string? _previewSourcePath;
     private CancellationTokenSource? _generation;
 
     public DeveloperWorkspaceWindow(
@@ -62,6 +63,7 @@ public partial class DeveloperWorkspaceWindow : Window
     private void SessionList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         _readApprovedSessionId = null; // a new session needs a fresh consent
+        ClearSelectedSource();
         RelativeFolderBox.Text = string.Empty;
         FilePreviewBox.Clear();
         ProjectItemsList.ItemsSource = null;
@@ -131,16 +133,69 @@ public partial class DeveloperWorkspaceWindow : Window
             return;
         }
 
+        DeveloperSourceContext? approvedSource = null;
+        if (AttachSourceCheckbox.IsChecked == true)
+        {
+            if (_previewSourcePath is not { } relativePath ||
+                _readApprovedSessionId != session.Id)
+            {
+                StatusMessage.Text = "Preview a file again before attaching it.";
+                return;
+            }
+
+            // A preview does not authorize transmission. Explicit Yes/No
+            // consent is required immediately before re-reading the file.
+            var choice = MessageBox.Show(this,
+                "Send the contents of this ONE source file with your next AI question?\n\n" +
+                relativePath + "\n\n" +
+                "Your configured provider will receive the text. If it is a cloud provider, " +
+                "the source may leave this PC. Source files can contain passwords, keys " +
+                "or other sensitive data that filename filtering cannot detect. " +
+                "Only send code you are comfortable sharing.\n\n" +
+                "The file is read-only; no commands or edits will be performed. " +
+                "No source content is saved in chat history.\n\n" +
+                "Send this file with the question?",
+                "Capri - confirm source sharing",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            if (choice != MessageBoxResult.Yes)
+            {
+                StatusMessage.Text = "Source sharing cancelled. No message sent.";
+                return;
+            }
+
+            try
+            {
+                var source = _files.ReadText(session.Id, relativePath, authorized: true);
+                if (source.Length > 8000)
+                {
+                    StatusMessage.Text = "This source file exceeds the 8,000-character AI attachment limit.";
+                    return;
+                }
+                approvedSource = new DeveloperSourceContext(session.Id, relativePath, source);
+            }
+            catch (Exception ex) when (IsLocalFailure(ex))
+            {
+                StatusMessage.Text = "Source file could not be read safely. No message sent.";
+                return;
+            }
+        }
+
         // User explicitly requested the provider call by clicking Send.
         using var cts = new CancellationTokenSource();
         _generation = cts;
         SendButton.IsEnabled = false;
-        StatusMessage.Text = "Asking your configured AI provider. No project files are attached.";
+        StatusMessage.Text = approvedSource is null
+            ? "Asking your configured AI provider. No project files are attached."
+            : "Asking your configured AI provider with one approved source snapshot.";
         try
         {
-            await _chat.SendAsync(session.Id, text, cts.Token);
-            MessageInput.Clear();
-            StatusMessage.Text = "Response saved privately. GUI and CLI share this conversation.";
+            await _chat.SendWithSourceAsync(session.Id, text, approvedSource, cts.Token);
+            if (Selected?.Id == session.Id)
+            {
+                MessageInput.Clear();
+                ClearSelectedSource();
+                StatusMessage.Text = "Response saved. Source snapshot was not stored in chat history.";
+            }
         }
         catch (OperationCanceledException)
         {
@@ -198,6 +253,7 @@ public partial class DeveloperWorkspaceWindow : Window
         }
         try
         {
+            ClearSelectedSource();
             var items = _files.List(session.Id, RelativeFolderBox.Text, authorized: true);
             ProjectItemsList.ItemsSource = items;
             FilePreviewBox.Clear();
@@ -237,15 +293,33 @@ public partial class DeveloperWorkspaceWindow : Window
         }
         try
         {
+            ClearSelectedSource();
             FilePreviewBox.Text = _files.ReadText(session.Id, file.RelativePath, authorized: true);
             FilePreviewBox.ScrollToHome();
+            if (FilePreviewBox.Text.Length <= 8000)
+            {
+                _previewSourcePath = file.RelativePath;
+                AttachSourceCheckbox.IsEnabled = true;
+                SelectedSourceText.Text = $"Selected for possible AI sharing: {file.RelativePath} (not sent yet)";
+            }
+            else
+                SelectedSourceText.Text = "Preview only: this file exceeds the 8,000-character AI attachment limit.";
             StatusMessage.Text = $"Local preview of {file.Name}. This text was NOT sent to AI.";
         }
         catch (Exception ex) when (IsLocalFailure(ex))
         {
+            ClearSelectedSource();
             FilePreviewBox.Clear();
             StatusMessage.Text = "File preview denied or unavailable. Only small UTF-8 source files are supported.";
         }
+    }
+
+    private void ClearSelectedSource()
+    {
+        _previewSourcePath = null;
+        AttachSourceCheckbox.IsChecked = false;
+        AttachSourceCheckbox.IsEnabled = false;
+        SelectedSourceText.Text = "No source file selected. Preview a file in the project files tab first.";
     }
 
     private void Refresh_Click(object sender, RoutedEventArgs e) => RefreshSessions();
