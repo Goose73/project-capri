@@ -1,5 +1,13 @@
 # Development progress
 
+## 2026-11-17 — One approved source file per developer AI request
+
+Capri's WPF Dev workspace now offers a separate unchecked **Include selected source file** control after the user approves a local preview. Before a file can be sent to the configured AI, Capri shows a second Yes/No warning describing cloud transmission and secrets that may live in ordinary source files. Denying sharing sends no question. The CLI requires all of `--context <relative-file> --allow-read --send-context` on `capri dev ask`. A session bookmark is never implicit project-reading permission.
+
+The existing bounded reader still enforces path containment, hidden/linked and common sensitive-path rejection, strict UTF-8 and 32 KB preview size. Single-model-request source context is limited further to 8,000 characters, serialized as lower-trust JSON reference data rather than a system instruction or executable tool. Only the typed user question and AI reply are stored in DPAPI-protected chat history; source snapshots are **not** persisted or reused in later requests. AI-generated responses may still reveal source text, and users should not share files containing secrets. No file writes, shell execution, emergency-stop changes or tool privileges were introduced.
+
+On the connected PC, an initial Windows Debug build passed with 9 existing analyzer warnings and 0 errors; **775/775 tests passed**, including source non-persistence, one-request scope, oversized/wrong-session/path rejection, failure handling and CLI explicit-consent parsing. The Release build subsequently passed with 0 errors; the device connection timed out before the final local Release test result could be read. GitHub Windows Release CI and manual WPF visual acceptance remain separate gates. Current PR branch: `feat/dev-explicit-source-context-20261117`.
+
 ## 2026-11-16 — Accurate GPU VRAM inspection for local model selection (PR pending)
 
 After explicit opt-in, `capri models recommend` and the guided setup now use NVIDIA's installed driver utility (`nvidia-smi`) to measure **dedicated GPU VRAM total and currently free** (MiB, converted to GiB), and label the source. The first display adapter is often a **Meta Virtual Monitor** instead of the GPU, so Windows CIM fallback now enumerates all adapters, skips virtual displays, and treats near-4-GiB `Win32_VideoController.AdapterRAM` as **unverified** because the 32-bit field can truncate large GPUs. Without vendor evidence, Capri reports unknown instead of pretending a wrapped value is a reliable GPU memory size. Multi-GPU detection chooses the largest single GPU, never adds VRAM.
