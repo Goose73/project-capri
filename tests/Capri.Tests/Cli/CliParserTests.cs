@@ -180,6 +180,35 @@ public sealed class CliParserTests
     }
 
     [Fact]
+    public void DeveloperSourceSharingRequiresAllThreeExplicitFlags()
+    {
+        var accepted = CliParser.Parse([
+            "dev", "ask", "session-id", "Explain this", "--context", "src/main.cs",
+            "--allow-read", "--send-context", "--json"]);
+        Assert.True(accepted.IsValid);
+        Assert.Equal("src/main.cs", accepted.ContextFile);
+        Assert.True(accepted.AllowRead);
+        Assert.True(accepted.SendContext);
+        Assert.True(accepted.Json);
+        Assert.Equal(["ask", "session-id", "Explain this"], accepted.Arguments);
+
+        Assert.False(CliParser.Parse([
+            "dev", "ask", "session", "Explain", "--context", "src/main.cs"]).IsValid);
+        Assert.False(CliParser.Parse([
+            "dev", "ask", "session", "Explain", "--context", "src/main.cs", "--allow-read"]).IsValid);
+        Assert.False(CliParser.Parse([
+            "dev", "ask", "session", "Explain", "--send-context"]).IsValid);
+        Assert.False(CliParser.Parse([
+            "dev", "ask", "session", "Explain", "--allow-read"]).IsValid);
+        Assert.False(CliParser.Parse([
+            "dev", "files", "session", "--send-context"]).IsValid);
+        Assert.False(CliParser.Parse([
+            "dev", "ask", "session", "Explain", "--context"]).IsValid);
+        Assert.False(CliParser.Parse([
+            "dev", "ask", "session", "Explain", "--context", "--json"]).IsValid);
+    }
+
+    [Fact]
     public void ModelsListParsesJson()
     {
         var invocation = CliParser.Parse(["models", "list", "--json"]);
