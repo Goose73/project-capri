@@ -155,13 +155,18 @@
                     </Expander.Header>
                     <Border Background="{StaticResource Surface2}" CornerRadius="8" Padding="12" Margin="0,4,0,0">
                         <StackPanel>
-                            <TextBlock Text="Voice and microphone preferences. Voice wiring depends on enabled integrations." Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
-                            <CheckBox Content="Enable microphone input (integration-dependent)" IsChecked="False" IsEnabled="False"/>
-                            <CheckBox Content="Enable text-to-speech responses (integration-dependent)" IsChecked="False" IsEnabled="False"/>
-                            <TextBlock Text="Input device" Foreground="{StaticResource Dim}"/>
-                            <ComboBox IsEnabled="False" SelectedIndex="0">
-                                <ComboBoxItem Content="System default (placeholder)"/>
-                            </ComboBox>
+                            <TextBlock Text="Offline wake-word recognition is available through installed Windows speech engines. Enabling the preference NEVER starts the mic by itself: press Mic in Capri Chat, and approve each session. Recognised speech is submitted to your selected AI provider; cloud restrictions still apply."
+                                       TextWrapping="Wrap" Foreground="{StaticResource Dim}" Margin="0,0,0,8"/>
+                            <CheckBox Content="Allow optional voice input and spoken answers" IsChecked="{Binding VoiceEnabled}"/>
+                            <CheckBox Content="Enable wake phrases: Hey Capri / Capri" IsChecked="{Binding EnableWakeWord}"/>
+                            <TextBlock Text="Mic uses your system default recording device. It stops when chat is hidden, closed or the session ends."
+                                       TextWrapping="Wrap" Foreground="{StaticResource Dim}" Margin="0,5,0,8"/>
+                            <TextBlock Text="Speech pace (local Windows voice)" Foreground="{StaticResource Dim}"/>
+                            <Slider Minimum="0.8" Maximum="1.2" TickFrequency="0.05" Value="{Binding VoiceRate}" Margin="0,2,0,6"/>
+                            <TextBlock Text="Voice volume" Foreground="{StaticResource Dim}"/>
+                            <Slider Minimum="0" Maximum="1" TickFrequency="0.1" Value="{Binding VoiceVolume}" Margin="0,2,0,4"/>
+                            <TextBlock Text="Windows' installed voices are a basic fallback, not an exact character or actor voice. A licensed expressive neural voice backend is a separate quality milestone."
+                                       TextWrapping="Wrap" Foreground="{StaticResource Dim}" Margin="0,5,0,0"/>
                         </StackPanel>
                     </Border>
                 </Expander>

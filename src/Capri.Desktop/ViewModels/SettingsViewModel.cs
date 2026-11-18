@@ -87,6 +87,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private int _ambientSampleSeconds = 20;
     [ObservableProperty] private int _ambientCommentSeconds = 300;
 
+    [ObservableProperty] private bool _voiceEnabled;
+    [ObservableProperty] private bool _enableWakeWord;
+    [ObservableProperty] private double _voiceRate = 1.0;
+    [ObservableProperty] private double _voiceVolume = 1.0;
+
     [ObservableProperty]
     private bool _allowCloudInference;
 
@@ -229,6 +234,10 @@ public sealed partial class SettingsViewModel : ObservableObject
             AllowMediaControl = current.Automation.AllowMediaControl;
             CharacterHeight = Math.Clamp(current.Ui.CharacterHeight, 150, 400);
             ReduceMotion = current.Ui.ReduceMotion;
+            VoiceEnabled = current.Voice.Enabled;
+            EnableWakeWord = current.Voice.EnableWakeWord;
+            VoiceRate = current.Voice.SpeechRate;
+            VoiceVolume = current.Voice.Volume;
             AmbientEnabled = current.AmbientVision.Enabled;
             AmbientAllowSpontaneousComments = current.AmbientVision.AllowSpontaneousComments;
             AmbientSpeakRemarks = current.AmbientVision.SpeakRemarks;
@@ -362,6 +371,13 @@ public sealed partial class SettingsViewModel : ObservableObject
                 {
                     CharacterHeight = Math.Clamp(CharacterHeight, 150, 400),
                     ReduceMotion = ReduceMotion
+                },
+                Voice = current.Voice with
+                {
+                    Enabled = VoiceEnabled,
+                    EnableWakeWord = EnableWakeWord,
+                    SpeechRate = Math.Clamp(VoiceRate, 0.8, 1.2),
+                    Volume = Math.Clamp(VoiceVolume, 0, 1)
                 },
                 AmbientVision = current.AmbientVision with
                 {

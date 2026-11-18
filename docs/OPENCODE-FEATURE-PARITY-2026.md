@@ -27,7 +27,7 @@
 | Context compaction and session continuation | **Partial:** bounded persisted chat; no compression or branch/fork | Token-aware context summaries, testable retention, session replay/import/export |
 | Usage statistics/cost reporting | **Not implemented** | Real measured tokens, per-provider estimates, no invented balances or fake limits |
 | Setup, self-diagnostics and repair | **Partial and improved this increment:** tracked Capri-owned safe defaults and verified recovery, custom settings retention | Guided one-click local onboarding, safe provider/model probe and interactive user-directed repair; never silently alter custom models |
-| Voice/companion visuals | **Partial:** animated sprite, typed cues, optional consented local webcam pipeline; live voice trigger requires separate work | True opt-in microphone hotword, TTS timing and illustrated facial/limb assets with visible use indicators |
+| Voice/companion visuals | **Partial (new increment):** character gesture on actual Windows offline wake phrase, optional per-session MIC ON recognition, separate dictated question, basic local SAPI narration, formatted WPF chat; no exact actor voice | Licensed high-quality neural TTS, real mic/voice acceptance, richer voice wake pipeline, TTS/viseme timing and illustrated facial/limb assets |
 
 OpenCode's official docs and current site describe desktop/multiple sessions, TUI/mini, APIs/SDK, agents, permissions, skills, MCP/plugins, terminal/browser tools, remote pairing and Git diff/undo:
 - https://opencode.ai/
