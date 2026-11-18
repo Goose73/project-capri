@@ -8,6 +8,7 @@ using Capri.Desktop.DependencyInjection;
 using Capri.Desktop.Services;
 using Capri.Desktop.Views;
 using Capri.Providers.DependencyInjection;
+using Capri.Security;
 using Capri.Security.DependencyInjection;
 using Capri.Voice.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
@@ -76,13 +77,44 @@ public partial class App : Application, IDisposable
                 return;
             }
 
+            // Repair only first-run or provably Capri-owned settings BEFORE
+            // services load their configuration. User-customised/malformed
+            // files are NEVER guessed at or overwritten on boot.
+            SettingsStartupRecovery.Result preflight;
+            try
+            {
+                preflight = await SettingsStartupRecovery
+                    .RunAsync(new CapriPaths()).ConfigureAwait(true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                preflight = new SettingsStartupRecovery.Result(
+                    SettingsStartupRecovery.Status.NeedsReview,
+                    "Settings preflight could not access the configuration. No automatic repair was performed.");
+            }
+
             _host = CreateHost();
             ConfigureSerilogFileSink(_host.Services);
+            Log.Information("Settings startup preflight: {State}", preflight.State);
 
             await _host.StartAsync().ConfigureAwait(true);
 
             var tray = _host.Services.GetRequiredService<TrayIconService>();
             tray.Initialize();
+
+            if (preflight.NeedsReview)
+            {
+                // Explain the failure without displaying any custom config or
+                // secret data. Review remains a user-directed repair action.
+                MessageBox.Show(
+                    "Capri noticed an issue in your existing configuration.\n\n" +
+                    "It has NOT replaced or reset the file, because it may contain " +
+                    "settings you deliberately customised.\n\n" +
+                    "Use 'capri doctor' and 'capri setup --repair' to review it. " +
+                    "Your original configuration was preserved.",
+                    "Capri - configuration needs review",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
 
             // Create the transparent character companion (hidden by default). Resolving it wires avatar presentation.
             _ = _host.Services.GetRequiredService<CharacterWindow>();

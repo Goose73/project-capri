@@ -371,8 +371,8 @@ public static class CliParser
         if (subcommand == "help" || IsHelpOption(subcommand))
             return new CliInvocation { Kind = CliCommandKind.Help, Topic = "dev" };
 
-        if (subcommand is not ("list" or "new" or "show" or "history" or "ask" or "files" or "file"))
-            return UsageError("Unknown developer command. Use list, new, show, history, ask, files, or file.");
+        if (subcommand is not ("list" or "new" or "show" or "history" or "ask" or "files" or "file" or "git-status" or "git-diff"))
+            return UsageError("Unknown developer command. Use list, new, show, history, ask, files, file, git-status or git-diff.");
 
         var json = false;
         var allowRead = false;
@@ -417,7 +417,8 @@ public static class CliParser
         {
             "list" => positional.Count == 0,
             "files" => positional.Count is 1 or 2,
-            "ask" or "file" => positional.Count == 2,
+            "git-status" => positional.Count == 1,
+            "ask" or "file" or "git-diff" => positional.Count == 2,
             _ => positional.Count == 1
         };
         if (!validCount)
@@ -427,6 +428,11 @@ public static class CliParser
             if ((contextFile is not null || sendContext || allowRead) &&
                 (contextFile is null || !sendContext || !allowRead))
                 return UsageError("To attach one source file, use --context <relative-file> --allow-read --send-context together.");
+        }
+        else if (subcommand is "git-status" or "git-diff")
+        {
+            if (!allowRead || contextFile is not null || sendContext)
+                return UsageError("Git previews require --allow-read. --context and --send-context are not supported.");
         }
         else if (contextFile is not null || sendContext ||
                  (allowRead && subcommand is not ("files" or "file")))

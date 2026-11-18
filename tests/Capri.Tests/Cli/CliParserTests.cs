@@ -209,6 +209,29 @@ public sealed class CliParserTests
     }
 
     [Fact]
+    public void DeveloperGitPreviewsNeedLocalReadConsentAndRejectSharingFlags()
+    {
+        var status = CliParser.Parse([
+            "dev", "git-status", "session-id", "--allow-read", "--json"]);
+        Assert.True(status.IsValid);
+        Assert.True(status.AllowRead);
+        Assert.Equal(["git-status", "session-id"], status.Arguments);
+
+        var diff = CliParser.Parse([
+            "dev", "git-diff", "session-id", "src/main.cs", "--allow-read"]);
+        Assert.True(diff.IsValid);
+        Assert.Equal(["git-diff", "session-id", "src/main.cs"], diff.Arguments);
+
+        Assert.False(CliParser.Parse(["dev", "git-status", "session-id"]).IsValid);
+        Assert.False(CliParser.Parse(["dev", "git-diff", "session-id", "a.cs"]).IsValid);
+        Assert.False(CliParser.Parse([
+            "dev", "git-diff", "session-id", "a.cs",
+            "--allow-read", "--send-context"]).IsValid);
+        Assert.False(CliParser.Parse([
+            "dev", "git-status", "session-id", "--allow-read", "--context", "a.cs"]).IsValid);
+    }
+
+    [Fact]
     public void ModelsListParsesJson()
     {
         var invocation = CliParser.Parse(["models", "list", "--json"]);

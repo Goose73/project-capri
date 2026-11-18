@@ -19,25 +19,32 @@ public sealed class DevCommand
     private readonly IDeveloperConversationStore? _history;
     private readonly IDeveloperWorkspaceReader? _reader;
     private readonly DeveloperConversationService? _chat;
+    private readonly IDeveloperGitInspector? _git;
 
     public DevCommand(
         ICliConsole console,
         IDeveloperSessionStore sessions,
         IDeveloperConversationStore? history = null,
         IDeveloperWorkspaceReader? reader = null,
-        DeveloperConversationService? chat = null)
+        DeveloperConversationService? chat = null,
+        IDeveloperGitInspector? git = null)
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         _history = history;
         _reader = reader;
         _chat = chat;
+        _git = git;
     }
 
     public async Task<int> ExecuteAsync(CliInvocation invocation,
         CancellationToken cancellationToken = default)
     {
-        if (invocation.Arguments.Count == 0 || invocation.Arguments[0] != "ask")
+        if (invocation.Arguments.Count == 0)
+            return Execute(invocation);
+        if (invocation.Arguments[0] is "git-status" or "git-diff")
+            return await GitPreviewAsync(invocation, cancellationToken).ConfigureAwait(false);
+        if (invocation.Arguments[0] != "ask")
             return Execute(invocation);
         cancellationToken.ThrowIfCancellationRequested();
         if (_chat is null)
@@ -86,6 +93,50 @@ public sealed class DevCommand
             return Fail(invocation.Json, "chat_failed",
                 "Developer conversation failed. Check saved sessions, model settings, provider consent and local storage.",
                 CliExitCodes.Error);
+        }
+    }
+
+    private async Task<int> GitPreviewAsync(CliInvocation invocation, CancellationToken ct)
+    {
+        if (_git is null)
+            return Fail(invocation.Json, "unavailable", "Read-only Git inspector is not available.");
+        if (!invocation.AllowRead)
+            return Fail(invocation.Json, "consent_required", "Git previews need --allow-read.");
+        if (!TryId(invocation.Arguments[1], out var id))
+            return Fail(invocation.Json, "invalid_id", "Enter a valid developer session ID.");
+
+        try
+        {
+            if (invocation.Arguments[0] == "git-status")
+            {
+                var result = await _git.GetStatusAsync(id, authorized: true, ct).ConfigureAwait(false);
+                if (invocation.Json)
+                    _console.WriteLine(JsonOutput.Serialize(new { ok = true, result }));
+                else
+                    _console.WriteLine(result.Output.Length == 0
+                        ? "No tracked Git changes." : result.Output);
+            }
+            else
+            {
+                var result = await _git.GetDiffAsync(id, invocation.Arguments[2], true, ct)
+                    .ConfigureAwait(false);
+                if (invocation.Json)
+                    _console.WriteLine(JsonOutput.Serialize(new { ok = true, result }));
+                else
+                {
+                    _console.WriteLine("Staged changes:");
+                    _console.WriteLine(result.StagedDiff.Length == 0 ? "  None" : result.StagedDiff);
+                    _console.WriteLine("Unstaged changes:");
+                    _console.WriteLine(result.UnstagedDiff.Length == 0 ? "  None" : result.UnstagedDiff);
+                }
+            }
+            return CliExitCodes.Success;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception)
+        {
+            return Fail(invocation.Json, "git_preview_failed",
+                "Read-only Git preview unavailable. Verify the project, Git installation, and source permissions.");
         }
     }
 

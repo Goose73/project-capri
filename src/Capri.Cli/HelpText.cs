@@ -164,6 +164,8 @@ public static class HelpText
                 capri dev ask <session-id> "<message>" --context <relative-file> --allow-read --send-context [--json]
                 capri dev files <session-id> [relative-folder] [--allow-read] [--json]
                 capri dev file <session-id> <relative-file> [--allow-read] [--json]
+                capri dev git-status <session-id> --allow-read [--json]
+                capri dev git-diff <session-id> <relative-file> --allow-read [--json]
 
                 The Windows GUI and CLI share encrypted, persisted developer
                 conversations. 'ask' uses Capri's configured provider and existing

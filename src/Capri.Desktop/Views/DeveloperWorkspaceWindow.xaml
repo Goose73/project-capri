@@ -150,6 +150,29 @@
                                  ToolTip="Source preview stays local and is never attached to chat automatically."/>
                     </Grid>
                 </TabItem>
+                <TabItem Header="Git changes">
+                    <Grid Margin="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" FontSize="12" Foreground="#B8B0C8"
+                                   TextWrapping="Wrap" Margin="0,0,0,10"
+                                   Text="Read-only Git preview. Authorise local project reading first. Status shows tracked changes only. For a staged/unstaged diff, select an eligible file in the Project files tab. Nothing here is sent to AI or executed."/>
+                        <WrapPanel Grid.Row="1" Margin="0,0,0,10">
+                            <Button Content="Refresh tracked status" Click="RefreshGit_Click"
+                                    Margin="0,0,8,0"/>
+                            <Button Content="Diff selected source file" Click="PreviewGitDiff_Click"/>
+                        </WrapPanel>
+                        <TextBox Grid.Row="2" x:Name="GitPreviewBox" IsReadOnly="True"
+                                 Text="Choose a project. No Git inspection has occurred."
+                                 FontFamily="Consolas" FontSize="12"
+                                 AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"/>
+                    </Grid>
+                </TabItem>
             </TabControl>
         </Grid>
         <DockPanel Grid.Row="3" Margin="0,12,0,0">

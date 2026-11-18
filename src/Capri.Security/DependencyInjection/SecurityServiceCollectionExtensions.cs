@@ -57,6 +57,11 @@ public static class SecurityServiceCollectionExtensions
             new FileDeveloperWorkspaceReader(
                 serviceProvider.GetRequiredService<IDeveloperSessionStore>()));
 
+        services.TryAddSingleton<IDeveloperGitInspector>(serviceProvider =>
+            new DeveloperGitInspector(
+                serviceProvider.GetRequiredService<IDeveloperSessionStore>(),
+                serviceProvider.GetRequiredService<IDeveloperWorkspaceReader>()));
+
         services.TryAddSingleton<IPermissionService>(serviceProvider =>
             new DefaultPermissionService(
                 serviceProvider.GetRequiredService<IAppSettingsStore>(),

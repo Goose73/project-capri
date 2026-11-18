@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Capri.Core.Abstractions;
 using Capri.Core.Models;
@@ -25,6 +26,9 @@ public sealed partial class JsonAppSettingsStore : IAppSettingsStore, IDisposabl
     private readonly ILogger<JsonAppSettingsStore> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private AppSettings _current;
+    // Tracks the exact last loaded/written bytes. External edits, deleted
+    // files, or a corrupt file cannot be silently overwritten by stale UI.
+    private string? _sourceDigest;
 
     /// <summary>
     /// Creates a store backed by <see cref="ICapriPaths.SettingsFile"/>. A
@@ -62,11 +66,37 @@ public sealed partial class JsonAppSettingsStore : IAppSettingsStore, IDisposabl
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            byte[]? originalBytes = null;
+            if (File.Exists(_paths.SettingsFile))
+                originalBytes = await File.ReadAllBytesAsync(_paths.SettingsFile, cancellationToken)
+                    .ConfigureAwait(false);
+
+            var actualDigest = originalBytes is null ? null : Digest(originalBytes);
+            if (!string.Equals(actualDigest, _sourceDigest, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Settings were edited or damaged outside Capri. Reload and review the file before saving.");
+            }
+
             await AtomicFile
                 .WriteAllBytesAsync(_paths.SettingsFile, bytes, cancellationToken)
                 .ConfigureAwait(false);
 
+            _sourceDigest = Digest(bytes);
             previous = Interlocked.Exchange(ref _current, normalized);
+
+            // Recovery metadata is best effort. If it fails, the config is
+            // still valid; the stale manifest simply cannot authorize an
+            // automatic restore next time.
+            try
+            {
+                await SettingsStartupRecovery.RememberManagedSaveAsync(
+                    _paths, originalBytes, bytes).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+            {
+                LogRecoverySnapshotUnavailable(_logger);
+            }
         }
         finally
         {
@@ -122,7 +152,9 @@ public sealed partial class JsonAppSettingsStore : IAppSettingsStore, IDisposabl
             }
 
             var settings = JsonSerializer.Deserialize<AppSettings>(bytes, SerializerOptions);
-            return settings is null ? CapriDefaultSettings.Create() : Normalize(settings);
+            if (settings is null) return CapriDefaultSettings.Create();
+            _sourceDigest = Digest(bytes);
+            return Normalize(settings);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -149,7 +181,9 @@ public sealed partial class JsonAppSettingsStore : IAppSettingsStore, IDisposabl
             }
 
             var settings = JsonSerializer.Deserialize<AppSettings>(bytes, SerializerOptions);
-            return settings is null ? null : Normalize(settings);
+            if (settings is null) return null;
+            _sourceDigest = Digest(bytes);
+            return Normalize(settings);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -186,6 +220,15 @@ public sealed partial class JsonAppSettingsStore : IAppSettingsStore, IDisposabl
         Level = LogLevel.Warning,
         Message = "Settings file is unreadable; keeping the current settings snapshot.")]
     private static partial void LogSettingsUnreadableKeepingCurrent(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 5,
+        Level = LogLevel.Warning,
+        Message = "The managed settings recovery snapshot could not be updated; existing settings remain saved.")]
+    private static partial void LogRecoverySnapshotUnavailable(ILogger logger);
+
+    private static string Digest(byte[] bytes)
+        => Convert.ToHexString(SHA256.HashData(bytes));
 
     private static AppSettings Normalize(AppSettings settings)
     {
@@ -243,7 +286,7 @@ public sealed partial class JsonAppSettingsStore : IAppSettingsStore, IDisposabl
         {
             return ProviderCatalog.TryGetById(providerId.Trim(), out var knownProfile)
                 ? knownProfile.Id
-                : CapriDefaultSettings.DefaultProviderId;
+                : providerId.Trim(); // Unknown/custom provider identifiers must survive saves.
         }
 
         return ProviderCatalog.TryGetByBaseUrl(baseUrl, out var inferredProfile)
