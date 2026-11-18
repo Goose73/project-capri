@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace Capri.Core.Companion;
 
 /// <summary>
@@ -8,6 +11,9 @@ namespace Capri.Core.Companion;
 /// </summary>
 public sealed record AmbientVisionSettings
 {
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? CustomProperties { get; init; }
+
     /// <summary>Opt-in preference; false for every existing installation.</summary>
     public bool Enabled { get; init; }
 

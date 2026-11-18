@@ -103,11 +103,17 @@ public sealed class JsonAppSettingsStoreTests
         {
             Provider = store.Current.Provider with { ChatModel = "kept-model" },
         };
-        await store.UpdateAsync(updated);
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => store.UpdateAsync(updated));
+        Assert.Equal("{ this is not json", await File.ReadAllTextAsync(paths.SettingsFile));
 
+        // A user can repair the file explicitly; then Reload can adopt it.
+        await File.WriteAllTextAsync(paths.SettingsFile,
+            """{"provider":{"providerId":"ollama","chatModel":"kept-model"}}""");
+        await store.ReloadAsync();
+        Assert.Equal("kept-model", store.Current.Provider.ChatModel);
         await File.WriteAllTextAsync(paths.SettingsFile, "{ broken again");
         await store.ReloadAsync();
-
         Assert.Equal("kept-model", store.Current.Provider.ChatModel);
     }
 
@@ -185,7 +191,7 @@ public sealed class JsonAppSettingsStoreTests
     [Theory]
     [InlineData(" ")]
     [InlineData("my-custom-provider")]
-    public async Task SchemaV1SettingsWithBlankOrUnknownProviderUseCanonicalFallbackWithoutRewritingCustomValues(
+    public async Task SchemaV1SettingsPreserveUnknownProviderAndCustomUrlsWithoutRewritingValues(
         string providerId)
     {
         using var temp = new TempDirectory();
@@ -205,7 +211,9 @@ public sealed class JsonAppSettingsStoreTests
         using var store = new JsonAppSettingsStore(paths);
 
         Assert.Equal(2, store.Current.SchemaVersion);
-        Assert.Equal(CapriDefaultSettings.DefaultProviderId, store.Current.Provider.ProviderId);
+        Assert.Equal(string.IsNullOrWhiteSpace(providerId)
+            ? CapriDefaultSettings.DefaultProviderId : providerId,
+            store.Current.Provider.ProviderId);
         Assert.Equal("http://192.168.1.50:8080/v1", store.Current.Provider.BaseUrl);
         Assert.Equal("house-model", store.Current.Provider.ChatModel);
         Assert.True(store.Current.Provider.FreeModelsOnly);
@@ -243,6 +251,83 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(2, reopened.Current.SchemaVersion);
         Assert.Equal("lmstudio", reopened.Current.Provider.ProviderId);
         Assert.Equal("local-model", reopened.Current.Provider.ChatModel);
+    }
+
+    [Fact]
+    public async Task SavedCustomJsonSurvivesNormalSettingsUpdates()
+    {
+        using var temp = new TempDirectory();
+        var paths = new CapriPaths(temp.Path);
+        var config = """
+            {
+              "schemaVersion":2,
+              "provider":{
+                "providerId":"my-custom-provider",
+                "baseUrl":"http://localhost:9234/v1",
+                "chatModel":"my-custom-model",
+                "providerFeature":{"config":[3,5,7]}
+              },
+              "ui":{"theme":"Dark","customUiOption":"keep"},
+              "voice":{"customVoiceOption":true},
+              "automation":{"customAgentOption":42},
+              "ambientVision":{"customVisionOption":"stay"},
+              "pluginConfig":{"enabled":false,"custom":{"nested":"unchanged"}}
+            }
+            """;
+        await File.WriteAllTextAsync(paths.SettingsFile, config);
+        using var store = new JsonAppSettingsStore(paths);
+        Assert.Equal("my-custom-provider", store.Current.Provider.ProviderId);
+
+        await store.UpdateAsync(store.Current with
+        {
+            Ui = store.Current.Ui with { AvatarScale = 1.25 }
+        });
+
+        using var saved = JsonDocument.Parse(await File.ReadAllTextAsync(paths.SettingsFile));
+        var root = saved.RootElement;
+        Assert.Equal("my-custom-provider", root.GetProperty("provider").GetProperty("providerId").GetString());
+        Assert.Equal("my-custom-model", root.GetProperty("provider").GetProperty("chatModel").GetString());
+        Assert.Equal(5, root.GetProperty("provider").GetProperty("providerFeature")
+            .GetProperty("config")[1].GetInt32());
+        Assert.Equal("keep", root.GetProperty("ui").GetProperty("customUiOption").GetString());
+        Assert.True(root.GetProperty("voice").GetProperty("customVoiceOption").GetBoolean());
+        Assert.Equal(42, root.GetProperty("automation").GetProperty("customAgentOption").GetInt32());
+        Assert.Equal("stay", root.GetProperty("ambientVision")
+            .GetProperty("customVisionOption").GetString());
+        Assert.Equal("unchanged", root.GetProperty("pluginConfig")
+            .GetProperty("custom").GetProperty("nested").GetString());
+        Assert.Equal(1.25, root.GetProperty("ui").GetProperty("avatarScale").GetDouble());
+    }
+
+    [Fact]
+    public async Task ExternalSettingsEditBlocksStaleProcessWrite()
+    {
+        using var temp = new TempDirectory();
+        var paths = new CapriPaths(temp.Path);
+        using var store = new JsonAppSettingsStore(paths);
+        await store.UpdateAsync(store.Current with
+        {
+            Provider = store.Current.Provider with { ChatModel = "first" }
+        });
+
+        // Another process or manual edit changes the exact saved bytes.
+        await File.WriteAllTextAsync(paths.SettingsFile,
+            """{"provider":{"providerId":"ollama","chatModel":"external-choice"}}""");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.UpdateAsync(
+            store.Current with
+            {
+                Provider = store.Current.Provider with { ChatModel = "stale-overwrite" }
+            }));
+
+        Assert.Contains("external-choice", await File.ReadAllTextAsync(paths.SettingsFile));
+        await store.ReloadAsync();
+        Assert.Equal("external-choice", store.Current.Provider.ChatModel);
+        await store.UpdateAsync(store.Current with
+        {
+            Provider = store.Current.Provider with { RequestTimeoutSeconds = 90 }
+        });
+        Assert.Equal("external-choice", store.Current.Provider.ChatModel);
     }
 
     [Fact]

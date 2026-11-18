@@ -18,6 +18,7 @@ public partial class DeveloperWorkspaceWindow : Window
     private readonly IDeveloperSessionStore _sessions;
     private readonly IDeveloperConversationStore _history;
     private readonly IDeveloperWorkspaceReader _files;
+    private readonly IDeveloperGitInspector _git;
     private readonly DeveloperConversationService _chat;
     private Guid? _readApprovedSessionId;
     private string? _previewSourcePath;
@@ -27,12 +28,14 @@ public partial class DeveloperWorkspaceWindow : Window
         IDeveloperSessionStore sessions,
         IDeveloperConversationStore history,
         IDeveloperWorkspaceReader files,
-        DeveloperConversationService chat)
+        DeveloperConversationService chat,
+        IDeveloperGitInspector git)
     {
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         _history = history ?? throw new ArgumentNullException(nameof(history));
         _files = files ?? throw new ArgumentNullException(nameof(files));
         _chat = chat ?? throw new ArgumentNullException(nameof(chat));
+        _git = git ?? throw new ArgumentNullException(nameof(git));
 
         InitializeComponent();
         Loaded += (_, _) => RefreshSessions();
@@ -67,6 +70,7 @@ public partial class DeveloperWorkspaceWindow : Window
         RelativeFolderBox.Text = string.Empty;
         FilePreviewBox.Clear();
         ProjectItemsList.ItemsSource = null;
+        GitPreviewBox.Text = "Choose a project. No Git inspection has occurred.";
         ReloadConversation();
     }
 
@@ -224,8 +228,9 @@ public partial class DeveloperWorkspaceWindow : Window
         if (_readApprovedSessionId == session.Id) return true;
 
         var consent = MessageBox.Show(this,
-            "Allow Capri to list eligible filenames and preview up to 32 KB of a selected " +
-            "source file in this project DURING THIS WINDOW ONLY?\n\n" +
+            "Allow Capri to list eligible source filenames, preview up to 32 KB of an " +
+            "eligible source file, and inspect tracked Git status/diffs in this project " +
+            "DURING THIS WINDOW ONLY?\n\n" +
             session.WorkspaceDirectory + "\n\n" +
             "Hidden, linked, common secret files and unsupported formats are blocked. " +
             "No file content is sent to the AI automatically. No code will be edited or run.\n\n" +
@@ -320,6 +325,66 @@ public partial class DeveloperWorkspaceWindow : Window
         AttachSourceCheckbox.IsChecked = false;
         AttachSourceCheckbox.IsEnabled = false;
         SelectedSourceText.Text = "No source file selected. Preview a file in the project files tab first.";
+    }
+
+    private async void RefreshGit_Click(object sender, RoutedEventArgs e)
+    {
+        if (Selected is not { } session)
+        {
+            StatusMessage.Text = "Select a developer project first.";
+            return;
+        }
+        if (!RequestReadApproval(session))
+        {
+            StatusMessage.Text = "Git inspection not authorised.";
+            return;
+        }
+        try
+        {
+            var result = await _git.GetStatusAsync(session.Id, authorized: true);
+            if (Selected?.Id == session.Id)
+                GitPreviewBox.Text = string.IsNullOrWhiteSpace(result.Output)
+                    ? "No tracked changes in this Git worktree." : result.Output;
+            StatusMessage.Text = "Read-only tracked Git status. No AI upload or code edits.";
+        }
+        catch (Exception ex) when (IsLocalFailure(ex))
+        {
+            GitPreviewBox.Text = "Git status unavailable. Is this project a Git worktree?";
+            StatusMessage.Text = "Git inspection could not be completed safely.";
+        }
+    }
+
+    private async void PreviewGitDiff_Click(object sender, RoutedEventArgs e)
+    {
+        if (Selected is not { } session ||
+            ProjectItemsList.SelectedItem is not DeveloperWorkspaceItem { IsDirectory: false } selected)
+        {
+            StatusMessage.Text = "Select an eligible file in Read-only project files first.";
+            return;
+        }
+        if (!RequestReadApproval(session))
+        {
+            StatusMessage.Text = "Git diff inspection not authorised.";
+            return;
+        }
+        try
+        {
+            var result = await _git.GetDiffAsync(session.Id, selected.RelativePath, authorized: true);
+            if (Selected?.Id == session.Id)
+            {
+                GitPreviewBox.Text = "STAGED CHANGES\n" +
+                    (string.IsNullOrEmpty(result.StagedDiff) ? "(none)\n" : result.StagedDiff) +
+                    "\nUNSTAGED CHANGES\n" +
+                    (string.IsNullOrEmpty(result.UnstagedDiff) ? "(none)" : result.UnstagedDiff);
+                GitPreviewBox.ScrollToHome();
+            }
+            StatusMessage.Text = "One-file Git diff preview. Nothing was edited, executed or sent to AI.";
+        }
+        catch (Exception ex) when (IsLocalFailure(ex))
+        {
+            GitPreviewBox.Text = "Git diff preview unavailable for this source file.";
+            StatusMessage.Text = "File was not inspected outside the read-only project policy.";
+        }
     }
 
     private void Refresh_Click(object sender, RoutedEventArgs e) => RefreshSessions();

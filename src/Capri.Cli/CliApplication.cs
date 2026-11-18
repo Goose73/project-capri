@@ -46,11 +46,12 @@ public sealed class CliApplication
         var devSessions = new Capri.Security.FileDeveloperSessionStore(services.Paths);
         var devConversations = new Capri.Security.FileDeveloperConversationStore(services.Paths, devSessions);
         var devReader = new Capri.Security.FileDeveloperWorkspaceReader(devSessions);
+        var devGit = new Capri.Security.DeveloperGitInspector(devSessions, devReader);
         var devChat = services.ChatProvider is { } devProvider && services.ModelRouter is { } devRouter
             ? new Capri.Core.Conversation.DeveloperConversationService(
                 devSessions, devConversations, devProvider, devRouter)
             : null;
-        _dev = new DevCommand(console, devSessions, devConversations, devReader, devChat);
+        _dev = new DevCommand(console, devSessions, devConversations, devReader, devChat, devGit);
         var ollama = ollamaClient ?? services.OllamaClient;
         _models = ollama is null ? null : new ModelsCommand(console, services, ollama);
         _ask = new AskCommand(console, services);

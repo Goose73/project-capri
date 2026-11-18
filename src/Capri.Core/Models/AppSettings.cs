@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Capri.Core.Companion;
 
 namespace Capri.Core.Models;
@@ -8,6 +10,10 @@ namespace Capri.Core.Models;
 /// </summary>
 public sealed record AppSettings
 {
+    /// <summary>Unknown custom top-level options survive reading and saving.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? CustomProperties { get; init; }
+
     /// <summary>
     /// Schema version used for forward-compatible migrations. Version 2 adds
     /// provider inference-safety settings.
@@ -46,6 +52,10 @@ public sealed record AppSettings
     /// </summary>
     public sealed record ProviderSettings
     {
+        /// <summary>Unrecognized provider options are not discarded.</summary>
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? CustomProperties { get; init; }
+
         /// <summary>
         /// Identifier of the selected provider implementation.
         /// </summary>
@@ -105,6 +115,9 @@ public sealed record AppSettings
     /// </summary>
     public sealed record AutomationSettings
     {
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? CustomProperties { get; init; }
+
         /// <summary>
         /// True when automation actions are enabled.
         /// </summary>
@@ -136,6 +149,9 @@ public sealed record AppSettings
     /// </summary>
     public sealed record UiSettings
     {
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? CustomProperties { get; init; }
+
         /// <summary>
         /// True when the application should start minimized.
         /// </summary>
@@ -180,6 +196,9 @@ public sealed record AppSettings
     /// </summary>
     public sealed record VoiceSettings
     {
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? CustomProperties { get; init; }
+
         /// <summary>
         /// True when voice input and output are enabled.
         /// </summary>
