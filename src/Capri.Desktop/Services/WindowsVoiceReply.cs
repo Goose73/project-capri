@@ -9,17 +9,24 @@ namespace Capri.Desktop.Services;
 /// are not a reproduction of a performer and are not a high-quality neural
 /// voice. This adapter can later be replaced with properly licensed local TTS.
 /// </summary>
-public sealed class WindowsVoiceReply
+public sealed class WindowsVoiceReply : IDisposable
 {
     private readonly object _sync = new();
     private SpeechSynthesizer? _active;
+    private readonly PiperNeuralVoiceReply _neural = new();
 
-    public async Task SpeakAsync(
+    /// <returns>True when the configured local Piper neural voice played;
+    /// false when the Windows SAPI fallback was used.</returns>
+    public async Task<bool> SpeakAsync(
         string response, AppSettings.VoiceSettings voice,
         CancellationToken cancellationToken = default)
     {
         var spoken = SpokenReplyText.Prepare(response);
-        if (spoken.Length == 0) return;
+        if (spoken.Length == 0) return false;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (await _neural.TrySpeakAsync(spoken, voice, cancellationToken).ConfigureAwait(false))
+            return true;
         cancellationToken.ThrowIfCancellationRequested();
 
         using var synthesizer = new SpeechSynthesizer();
@@ -56,6 +63,7 @@ public sealed class WindowsVoiceReply
         {
             synthesizer.SpeakAsync(spoken);
             await finished.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return false;
         }
         finally
         {
@@ -72,9 +80,16 @@ public sealed class WindowsVoiceReply
 
     public void Stop()
     {
+        _neural.Stop();
         SpeechSynthesizer? speaker;
         lock (_sync) speaker = _active;
         try { speaker?.SpeakAsyncCancelAll(); }
         catch (ObjectDisposedException) { }
+    }
+
+    public void Dispose()
+    {
+        Stop();
+        _neural.Dispose();
     }
 }

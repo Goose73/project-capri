@@ -230,6 +230,17 @@ public sealed record AppSettings
         public string? OutputDeviceId { get; init; }
 
         /// <summary>
+        /// Opt-in use of an already installed Piper local neural voice server.
+        /// The server is never launched or downloaded by Capri.
+        /// </summary>
+        public bool UseLocalNeuralVoice { get; init; }
+
+        /// <summary>
+        /// A literal loopback HTTP Piper endpoint (no hostname or remote host).
+        /// </summary>
+        public string NeuralVoiceEndpoint { get; init; } = "http://127.0.0.1:5000";
+
+        /// <summary>
         /// Speech rate multiplier.
         /// </summary>
         public double SpeechRate { get; init; } = 1.0;

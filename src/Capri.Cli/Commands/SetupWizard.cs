@@ -476,12 +476,14 @@ public sealed class SetupWizard
 
     private AppSettings ConfigureVoice(AppSettings settings)
     {
-        _console.WriteLine("Step 6/7 - Voice preferences (configuration only)");
-        _console.WriteLine("  Note: \"Hey Capri\" wake activation is NOT yet implemented/validated in this build. These settings are saved for future use.");
+        _console.WriteLine("Step 6/7 - Voice (microphone OFF by default)");
+        _console.WriteLine("  Windows offline recognition supports Hey Capri and Capri after per-session mic approval in the desktop chat.");
+        _console.WriteLine("  Optional local Piper neural speech needs an already installed, running loopback server; Capri never downloads voices.");
         var voice = settings.Voice;
-        voice = voice with { Enabled = PromptYesNo("Enable voice features (config only)?", voice.Enabled) };
-        voice = voice with { EnableWakeWord = PromptYesNo("Enable wake word flag (config only; Hey Capri activation not yet implemented)?", voice.EnableWakeWord) };
-        voice = voice with { WakeWord = PromptText("Wake word text", voice.WakeWord) ?? voice.WakeWord };
+        voice = voice with { Enabled = PromptYesNo("Allow optional voice input/output (mic still OFF until explicitly approved)?", voice.Enabled) };
+        voice = voice with { EnableWakeWord = PromptYesNo("Enable Hey Capri / Capri activation after mic session approval?", voice.EnableWakeWord) };
+        voice = voice with { UseLocalNeuralVoice = PromptYesNo("Prefer an installed local Piper neural voice for replies?", voice.UseLocalNeuralVoice) };
+        _console.WriteLine("  Supported wake phrases are fixed: Hey Capri / Capri. Any existing custom wakeWord JSON field is preserved.");
         voice = voice with { Language = PromptText("Language tag", voice.Language) ?? voice.Language };
         _console.WriteLine(string.Empty);
         return settings with { Voice = voice };
@@ -599,7 +601,8 @@ public sealed class SetupWizard
         _console.WriteLine($"  Model:           {Display(settings.Provider.ChatModel)}");
         _console.WriteLine($"  Base URL:        {SafeUrl.ForDisplay(settings.Provider.BaseUrl)}");
         _console.WriteLine($"  Inference test:  {(inference.Success ? $"PASS ({inference.LatencyMs} ms)" : $"FAIL/SKIPPED - {inference.Message}")}");
-        _console.WriteLine($"  Voice enabled:   {settings.Voice.Enabled} (config only; Hey Capri wake activation not yet implemented/validated)");
+        _console.WriteLine($"  Voice enabled:   {settings.Voice.Enabled} (mic OFF until per-session approval in desktop)");
+        _console.WriteLine($"  Local neural:    {settings.Voice.UseLocalNeuralVoice} (requires existing Piper server)");
         _console.WriteLine($"  Wake word flag:  {settings.Voice.EnableWakeWord}, text: {settings.Voice.WakeWord}");
         _console.WriteLine($"  UI theme:        {settings.Ui.Theme}, start minimized: {settings.Ui.StartMinimized}, always on top: {settings.Ui.AlwaysOnTop}");
         _console.WriteLine($"  Automation:      enabled={settings.Automation.Enabled}, confirm={settings.Automation.RequireConfirmation}");

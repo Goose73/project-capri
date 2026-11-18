@@ -60,6 +60,7 @@ public partial class ChatPanelWindow : Window
             _settingsStore.Changed -= OnVoiceSettingsChanged;
             Microsoft.Win32.SystemEvents.SessionSwitch -= OnWindowsSessionSwitch;
             _wake.Dispose();
+            _voiceReply.Dispose();
             _viewModel.UserTextSubmitted -= OnTypedUserTextSubmitted;
         };
         IsVisibleChanged += (_, e) =>
@@ -430,8 +431,10 @@ public partial class ChatPanelWindow : Window
             if (!string.IsNullOrWhiteSpace(answer) && _settingsStore.Current.Voice.Enabled)
             {
                 VoiceIndicator.Text = "MIC ON · SPEAKING";
-                await _voiceReply.SpeakAsync(answer, _settingsStore.Current.Voice, cts.Token)
-                    .ConfigureAwait(true);
+                var usedNeural = await _voiceReply.SpeakAsync(
+                    answer, _settingsStore.Current.Voice, cts.Token).ConfigureAwait(true);
+                if (!usedNeural && _settingsStore.Current.Voice.UseLocalNeuralVoice)
+                    _viewModel.StatusText = "Local Piper voice unavailable. Used Windows speech instead.";
             }
         }
         catch (OperationCanceledException)

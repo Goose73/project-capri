@@ -235,6 +235,28 @@ public sealed class ConfigSettingsTests
     }
 
     [Fact]
+    public void OptionalNeuralVoiceSettingsRejectExternalEndpointsAndPreserveChoice()
+    {
+        var initial = CapriDefaultSettings.Create();
+        Assert.False(initial.Voice.UseLocalNeuralVoice);
+        Assert.True(ConfigSettings.TrySet(initial,
+            "voice.enableWakeWord", "true", out var enabledWake, out _));
+        Assert.True(enabledWake.Voice.EnableWakeWord);
+        Assert.True(ConfigSettings.TrySet(enabledWake,
+            "voice.useLocalNeuralVoice", "true", out var enabled, out _));
+        Assert.True(enabled.Voice.UseLocalNeuralVoice);
+        Assert.True(ConfigSettings.TrySet(enabled,
+            "voice.neuralVoiceEndpoint", "http://127.0.0.1:5100",
+            out var custom, out _));
+        Assert.Equal("http://127.0.0.1:5100", custom.Voice.NeuralVoiceEndpoint);
+        Assert.False(ConfigSettings.TrySet(custom,
+            "voice.neuralVoiceEndpoint", "https://example.org",
+            out _, out _));
+        Assert.Equal("http://127.0.0.1:5100",
+            ConfigSettings.GetValue(custom, "voice.neuralVoiceEndpoint"));
+    }
+
+    [Fact]
     public void BaseUrlDisplayRedactsUserInfoAndQuery()
     {
         var display = SafeUrl.ForDisplay("https://user:pass@example.com/v1?api_key=secret#frag");

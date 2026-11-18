@@ -22,7 +22,23 @@ The official *Cyberpunk: Edgerunners 2* character page credits **Aoi Koga** for 
 - Offer user-selectable language/voice models with **no model downloads or cloud audio processing without explicit opt-in**
 - Use an original/approved voice design rather than implying that the basic Windows voice is the actor's performance
 
-The voice synthesis adapter is deliberately isolated from the wake-word and chat logic to allow a licensed **offline neural TTS engine** in a future milestone. That neural engine and authentic voice-performance matching are **not implemented here**.
+### Optional local neural voice (Piper)
+
+Capri now has an **optional Piper neural TTS adapter** for a locally installed and already-running Piper HTTP server. It remains OFF by default. In **Settings → Voice / mic**, enable **Prefer an installed Piper neural voice**, and configure a **literal loopback address** (default `http://127.0.0.1:5000`). Capri POSTs only the shortened spoken answer to `/synthesize`, validates the returned bounded WAV and plays it locally. No remote HTTP addresses, hostnames, redirects or proxies are accepted. If the server is unavailable, Capri reports the fallback and speaks through Windows SAPI.
+
+Piper installation/model selection is a separate user action. From the documented official package, after selecting a licence-compatible voice:
+
+```powershell
+py -m pip install "piper-tts[http]"
+py -m piper.download_voices <approved-voice-id>
+py -m piper.http_server -m <approved-voice-id> --host 127.0.0.1 --port 5000
+```
+
+These are **manual reference commands**, not operations Capri executes. Review the voice model's licence before choosing it. Piper can produce more natural sound than standard SAPI, but it is not an exact reproduction of the character's Japanese performer or any actor. Authentic vocal identity, performance-directed emotion, model rights and physical listening quality remain unverified.
+
+Official reference: https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/API_HTTP.md
+
+The older Windows voice stays as a fallback and does not require Piper. No voice package or model is downloaded automatically.
 
 ## Safety and limitations
 
@@ -31,7 +47,7 @@ The voice synthesis adapter is deliberately isolated from the wake-word and chat
 - **Mic listening only runs while the Chat panel is visible and the user has opted in during that session**. This is not a background Windows service. Hiding chat revokes active recognition.
 - Raw microphone audio stays local to Windows recognition. The resulting *text* may be sent to a cloud model only if the configured provider's separate cloud-consent guard permits it; the UI explicitly warns about this.
 - Voice questions can trigger the same existing chat/intents as typed questions, and **do not grant extra file, camera, task approval or shell execution rights**. Emergency-stop state is untouched.
-- Current local SAPI synthesis is not guaranteed smooth, human-like or faithful to the series. Physical acoustic acceptance and any future natural TTS installation are separate gates.
+- Windows SAPI synthesis is not guaranteed smooth or faithful to the series. The Piper adapter can use an appropriately licensed neural voice only once the user installs, starts and opts into it. Neither backend is guaranteed to reproduce the show's voice; physical acoustic acceptance remains separate.
 
 ## Manual acceptance checklist
 
