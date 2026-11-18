@@ -87,6 +87,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private int _ambientSampleSeconds = 20;
     [ObservableProperty] private int _ambientCommentSeconds = 300;
 
+    [ObservableProperty] private bool _voiceEnabled;
+    [ObservableProperty] private bool _enableWakeWord;
+    [ObservableProperty] private bool _useLocalNeuralVoice;
+    [ObservableProperty] private string _neuralVoiceEndpoint = "http://127.0.0.1:5000";
+    [ObservableProperty] private double _voiceRate = 1.0;
+    [ObservableProperty] private double _voiceVolume = 1.0;
+
     [ObservableProperty]
     private bool _allowCloudInference;
 
@@ -229,6 +236,12 @@ public sealed partial class SettingsViewModel : ObservableObject
             AllowMediaControl = current.Automation.AllowMediaControl;
             CharacterHeight = Math.Clamp(current.Ui.CharacterHeight, 150, 400);
             ReduceMotion = current.Ui.ReduceMotion;
+            VoiceEnabled = current.Voice.Enabled;
+            EnableWakeWord = current.Voice.EnableWakeWord;
+            UseLocalNeuralVoice = current.Voice.UseLocalNeuralVoice;
+            NeuralVoiceEndpoint = current.Voice.NeuralVoiceEndpoint;
+            VoiceRate = current.Voice.SpeechRate;
+            VoiceVolume = current.Voice.Volume;
             AmbientEnabled = current.AmbientVision.Enabled;
             AmbientAllowSpontaneousComments = current.AmbientVision.AllowSpontaneousComments;
             AmbientSpeakRemarks = current.AmbientVision.SpeakRemarks;
@@ -333,6 +346,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private async Task SaveAsync()
     {
+        if (UseLocalNeuralVoice &&
+            !Capri.Core.Voice.LocalNeuralVoiceSettings.TryGetSynthesisUri(
+                NeuralVoiceEndpoint, out _))
+        {
+            SaveStatus = "Piper speech requires a local-only address such as http://127.0.0.1:5000. No settings were changed.";
+            return;
+        }
         try
         {
             var current = _settingsStore.Current;
@@ -362,6 +382,15 @@ public sealed partial class SettingsViewModel : ObservableObject
                 {
                     CharacterHeight = Math.Clamp(CharacterHeight, 150, 400),
                     ReduceMotion = ReduceMotion
+                },
+                Voice = current.Voice with
+                {
+                    Enabled = VoiceEnabled,
+                    EnableWakeWord = EnableWakeWord,
+                    UseLocalNeuralVoice = UseLocalNeuralVoice,
+                    NeuralVoiceEndpoint = (NeuralVoiceEndpoint ?? string.Empty).Trim(),
+                    SpeechRate = Math.Clamp(VoiceRate, 0.8, 1.2),
+                    Volume = Math.Clamp(VoiceVolume, 0, 1)
                 },
                 AmbientVision = current.AmbientVision with
                 {

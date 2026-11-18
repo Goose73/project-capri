@@ -38,6 +38,9 @@ public static class ConfigSettings
         "ui.avatarScale",
         "ui.characterHeight",
         "voice.enabled",
+        "voice.enableWakeWord",
+        "voice.useLocalNeuralVoice",
+        "voice.neuralVoiceEndpoint",
         "voice.wakeWord",
         "voice.language",
         "voice.speechRate",
@@ -109,6 +112,9 @@ public static class ConfigSettings
             "ui.avatarScale" => ui.AvatarScale,
             "ui.characterHeight" => ui.CharacterHeight,
             "voice.enabled" => voice.Enabled,
+            "voice.enableWakeWord" => voice.EnableWakeWord,
+            "voice.useLocalNeuralVoice" => voice.UseLocalNeuralVoice,
+            "voice.neuralVoiceEndpoint" => voice.NeuralVoiceEndpoint,
             "voice.wakeWord" => voice.WakeWord,
             "voice.language" => voice.Language,
             "voice.speechRate" => voice.SpeechRate,
@@ -415,6 +421,33 @@ public static class ConfigSettings
                 }
 
                 updated = current with { Voice = voice with { Enabled = voiceEnabled } };
+                return true;
+
+            case "voice.enableWakeWord":
+                if (!TryParseBoolean(value, out var enabledWakeWord))
+                {
+                    error = "Use true or false.";
+                    return false;
+                }
+                updated = current with { Voice = voice with { EnableWakeWord = enabledWakeWord } };
+                return true;
+
+            case "voice.useLocalNeuralVoice":
+                if (!TryParseBoolean(value, out var enableNeural))
+                {
+                    error = "Use true or false.";
+                    return false;
+                }
+                updated = current with { Voice = voice with { UseLocalNeuralVoice = enableNeural } };
+                return true;
+
+            case "voice.neuralVoiceEndpoint":
+                if (!Capri.Core.Voice.LocalNeuralVoiceSettings.TryGetSynthesisUri(value, out _))
+                {
+                    error = "Only a literal loopback HTTP endpoint, such as http://127.0.0.1:5000, is supported.";
+                    return false;
+                }
+                updated = current with { Voice = voice with { NeuralVoiceEndpoint = value } };
                 return true;
 
             case "voice.wakeWord":

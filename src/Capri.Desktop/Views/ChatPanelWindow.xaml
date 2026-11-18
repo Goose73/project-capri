@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Capri.Desktop.ViewModels"
+        xmlns:controls="clr-namespace:Capri.Desktop.Controls"
         mc:Ignorable="d"
         Title="Capri Chat"
         Width="410" Height="620"
@@ -91,9 +92,10 @@
                 </Border.Style>
                 <StackPanel>
                     <TextBlock Text="{Binding Role}" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource FaceGreen}" Opacity="0.9"/>
-                    <TextBox Text="{Binding Text, Mode=OneWay}" TextWrapping="Wrap" IsReadOnly="True"
-                             BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextMain}"
-                             Padding="0" Margin="0,2,0,0" IsReadOnlyCaretVisible="False" CaretBrush="{StaticResource TextMain}"/>
+                    <controls:MarkdownMessageTextBlock Markdown="{Binding Text}"
+                             TextWrapping="Wrap" Foreground="{StaticResource TextMain}"
+                             Margin="0,4,0,0"
+                             ToolTip="Formatted chat text. Right-click to copy the original message."/>
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -119,6 +121,10 @@
                     <TextBlock Text="Capri" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextMain}"/>
                     <Button Content="Dev" Style="{StaticResource DarkButton}" Padding="7,2" Margin="12,0,0,0" FontSize="11"
                             ToolTip="Open the developer workspace" Click="DeveloperWorkspace_Click"/>
+                    <TextBlock x:Name="VoiceIndicator" Text="MIC OFF" Margin="9,0,0,0"
+                               VerticalAlignment="Center" FontSize="10"
+                               Foreground="{StaticResource TextDim}"
+                               ToolTip="The microphone is off until you explicitly approve a listening session."/>
                 </StackPanel>
                 <Button Content="×" DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Padding="8,1" FontSize="14"
                         ToolTip="Hide chat" Click="HideButton_Click"/>
@@ -213,8 +219,7 @@
                          BorderBrush="#55FF176C"
                          BorderThickness="1"
                          Padding="8,6"/>
-                <Button Grid.Column="1" x:Name="MicButton" Content="🎤" Style="{StaticResource IconButton}" Margin="0,0,6,0"
-                        ToolTip="Microphone (placeholder)" Click="MicButton_Click"/>
+                <Button Grid.Column="1" x:Name="MicButton" Content="Mic off" Style="{StaticResource IconButton}" Margin="0,0,6,0" ToolTip="Start/stop offline microphone session; requires consent" Click="MicButton_Click"/>
                 <Button Grid.Column="2" Content="Send" Style="{StaticResource DarkButton}" Margin="0,0,6,0"
                         Command="{Binding SendCommand}"/>
                 <Button Grid.Column="3" Content="Stop" Style="{StaticResource DarkButton}" ToolTip="Stop current response"

@@ -1,5 +1,7 @@
 # Project Capri
 
+**Voice and chat formatting (2026-11-18):** Explicit offline Windows wake-phrase recognition for **Hey Capri / Capri**, visible microphone controls, safe Markdown chat display and an optional local Piper neural TTS backend are implemented in the development branch. Piper requires a separately installed/licensed voice and running **loopback-only** local server; Capri never downloads a voice, activates the mic at boot or claims to reproduce an anime actor's performance. Windows SAPI remains the fallback. See [voice / chat / local neural TTS](docs/VOICE-WAKE-AND-CHAT-FORMATTING.md).
+
 **Ambient companion webcam (Windows source implementation, OFF by default):** Capri has explicitly consented webcam snapshots, local-only Ollama vision analysis, optional rate-limited chat remarks and optional offline Windows speech, with a visible camera indicator and pause/stop controls. A saved preference never automatically activates the webcam. The feature still needs real webcam/GPU acceptance testing before production. See [Ambient Companion instructions](docs/AMBIENT-COMPANION.md).
 
 **Scope decision (2026-11-09):** The optional Raspberry Pi Hub feature was removed because it was unnecessary for the current Project Capri goals. The PC's existing remote Wake-on-LAN/Tailscale setup already works independently. Prioritize supervised M4 acceptance and the Windows M5 shared task authority; do not reintroduce a Pi Hub without an explicit new request. See [development progress](docs/PROGRESS.md).
@@ -39,6 +41,10 @@ Screen vision is **architecture only** - see [docs/SCREEN-CONTROL-PLAN.md](docs/
 ## Smart configuration and self-repair (2026-11-18)
 
 Capri now checks its settings on desktop startup. It creates **safe defaults** for a fresh installation, restores only a previously Capri-managed missing or empty configuration from a verified last-good snapshot, and **does not overwrite custom or malformed configuration** without review. Unknown JSON fields and custom provider names survive normal saves; external edits are protected against stale GUI writes. This is **not** unattended reconfiguration or automatic model downloads. See [smart setup and safe repair](docs/SMART-SETUP-AND-SELF-REPAIR.md).
+
+## Voice wake phrases and formatted chat (2026-11-18)
+
+Capri chat now renders headings, lists, bold/italic text, inline and fenced code, and safe link labels, without executing model-generated markup or automatically opening URLs. Right-click a message to copy the original text. The previous microphone placeholder has an **explicit, opt-in offline Windows speech session**: enable Voice and wake phrases in Settings, then press **Mic off** in the chat and confirm. Say **"Hey Capri"** or **"Capri"**, pause and speak your question. It follows the configured chat provider's existing permissions and can speak the reply through the installed Windows TTS voice. A visible MIC ON label remains in chat while listening; hide, stop, lock and settings-disable shut down recognition. **The current Windows voice is only a basic fallback, not the show's Capri voice or natural neural TTS.** See [voice status and acceptance](docs/VOICE-WAKE-AND-CHAT-FORMATTING.md).
 
 ## Developer workspace (GUI-first, permissioned read-only preview)
 

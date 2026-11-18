@@ -8,6 +8,12 @@ Project Capri is an AI-powered Windows desktop companion (C# / WPF / .NET 10). T
 - [ ] **OpenCode-level developer capabilities in Capri's own product design:** [feature-by-feature audit and architecture](docs/OPENCODE-CAPABILITY-ROADMAP.md). Default Windows WPF assistant for nontechnical users; optional shared-session TUI for developer coding, model switching, diffs, source tools, worktrees, skills/MCP/plugins, context history, undo and safe automation. No separate unauthorised tool engine; all device effects preserve human approval.
 - [ ] **Real account sign-in and local model improvements:** browser sign-in with ChatGPT Plus/Pro only via documented authorized integration and separate from API keys; Ollama/LM Studio model detection, hardware consent and capability-aware recommendations; never scrape browser/OpenCode tokens.
 
+## 2026-11-18 — Voice wake word and readable messages
+
+- [x] **First offline wake-word flow:** per-chat-session microphone opt-in with visible MIC ON, Windows recognizer grammar for "Hey Capri" / "Capri", short separate dictated question, existing AI-provider route, an actual avatar cue and cancellable Windows TTS fallback. Stops on hiding chat / Windows lock. Tests and PC audio validation tracked separately in [voice docs](docs/VOICE-WAKE-AND-CHAT-FORMATTING.md).
+- [x] **Safer AI text rendering:** headings, paragraphs, bullets, bold/italic text, code and safe links displayed as styled WPF text. Streaming updates cannot cause HTML/script/XAML execution. Context menu copies original text.
+- [ ] **Authentic natural Capri voice:** optional properly licensed local neural TTS engine with real emotion/intonation, original sound design and physical listening acceptance. The standard Windows voice is *not* an actor clone or neural-quality output. Include real response interruption, locale/device selection and wake+question in one phrase.
+
 ## 2026-11-18 — OpenCode parity and smart setup increments
 
 - [x] **Startup preflight:** first-run safe default creation; verified Capri-owned last-good restoration for missing or zero-byte files, damage archiving, no silent reset of custom/corrupt JSON. User-added extension data and unknown provider identifiers survive normal saves; concurrent external edits block stale writes. See [setup/recovery guardrails](docs/SMART-SETUP-AND-SELF-REPAIR.md).

@@ -193,6 +193,23 @@ public sealed partial class OverlayChatViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Submit a question already recognised by the user's opt-in local mic
+    /// session. Uses the SAME chat/provider/approval pipeline as typing.
+    /// Returns only a newly generated assistant message for local narration.
+    /// </summary>
+    public async Task<string?> AskByVoiceAsync(string question)
+    {
+        if (_disposed || IsBusy || string.IsNullOrWhiteSpace(question) ||
+            question.Length > 800)
+            return null;
+        var before = Messages.Count;
+        InputText = question;
+        await SendAsync().ConfigureAwait(false);
+        return Messages.Skip(before)
+            .LastOrDefault(m => m.Role == "Capri" && !m.IsError)?.Text;
+    }
+
     private async Task RunTurnAsync(string text, CancellationToken ct)
     {
         await foreach (var update in _orchestrator.StreamAsync(text, ct).ConfigureAwait(false))
