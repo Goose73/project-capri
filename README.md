@@ -1,5 +1,7 @@
 # Project Capri
 
+**Terminal command (2026-11-18):** `capri restart` restarts the built Release desktop cleanly, or starts it if no Capri desktop is running. It checks the current-user task-status service, refuses restart during active tasks, and never force-kills a process, starts duplicates, changes custom settings or clears the emergency-stop latch. See `capri help restart`.
+
 **Voice and chat formatting (2026-11-18):** Explicit offline Windows wake-phrase recognition for **Hey Capri / Capri**, visible microphone controls, safe Markdown chat display and an optional local Piper neural TTS backend are implemented in the development branch. Piper requires a separately installed/licensed voice and running **loopback-only** local server; Capri never downloads a voice, activates the mic at boot or claims to reproduce an anime actor's performance. Windows SAPI remains the fallback. See [voice / chat / local neural TTS](docs/VOICE-WAKE-AND-CHAT-FORMATTING.md).
 
 **Ambient companion webcam (Windows source implementation, OFF by default):** Capri has explicitly consented webcam snapshots, local-only Ollama vision analysis, optional rate-limited chat remarks and optional offline Windows speech, with a visible camera indicator and pause/stop controls. A saved preference never automatically activates the webcam. The feature still needs real webcam/GPU acceptance testing before production. See [Ambient Companion instructions](docs/AMBIENT-COMPANION.md).

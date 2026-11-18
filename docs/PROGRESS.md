@@ -1,5 +1,9 @@
 # Development progress
 
+## 2026-11-18 — Safe terminal restart command (PR pending)
+
+Added `capri restart` with its own CLI dispatch and help. The command validates the exact running Release desktop executable and current Windows session; if no instance exists it starts Capri. When an instance exists, it checks the current-user read-only task status and refuses to restart if a task is active or status cannot be verified. It requests a normal WPF dispatcher shutdown through a bounded WM_QUIT message, waits up to 12 seconds for full exit, and starts one Release desktop only after the previous instance is gone. It **never force-kills**, changes settings, resets emergency stop, launches a second copy while one is running, or restarts an unrelated executable. Parser, app dispatch and safety behavior are covered by isolated tests; clean Windows CI and physical PC acceptance are separate gates.
+
 ## 2026-11-18 — Optional local Piper neural voice adapter (validation pending)
 
 Following the already implemented opt-in Windows `Hey Capri` / `Capri` wake phrases and safe chat Markdown, Capri now supports an **optional**, user-configurable **loopback-only Piper HTTP neural TTS service** to improve voice naturalness. An installed/started Piper voice remains a separate user action with a voice-model licence review; no voice/model download, mic auto-start, remote TTS upload or performer imitation is claimed. When Piper isn't reachable, the existing Windows SAPI female speech fallback runs and Capri displays a clear fallback notice. The endpoint is constrained to a literal local loopback IP and tested against remote/hostname/path/query redirects. Saved neural voice settings default off and remain compatible with custom user JSON. See [voice and formatted chat](VOICE-WAKE-AND-CHAT-FORMATTING.md). A real acoustic acceptance test and approved natural-sounding voice model are still required before calling Capri's sound finished.

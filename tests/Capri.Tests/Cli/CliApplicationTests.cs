@@ -72,6 +72,28 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
+    public async Task RestartUsesSafeRestarterRatherThanLauncher()
+    {
+        using var fixture = new ApplicationFixture();
+        var code = await fixture.Application.RunAsync(CliParser.Parse(["restart"]));
+        Assert.Equal(CliExitCodes.Success, code);
+        Assert.Equal(1, fixture.Restarter.RestartCount);
+        Assert.Equal(0, fixture.Launcher.LaunchCount);
+    }
+
+    [Fact]
+    public async Task UnsafeRestartReturnsErrorWithoutLaunching()
+    {
+        using var fixture = new ApplicationFixture(
+            restarter: new StubDesktopRestarter(
+                new DesktopRestartResult(false, "Active task; restart denied.")));
+        var code = await fixture.Application.RunAsync(CliParser.Parse(["restart"]));
+        Assert.Equal(CliExitCodes.Error, code);
+        Assert.Contains("Active task", fixture.Console.Error);
+        Assert.Equal(0, fixture.Launcher.LaunchCount);
+    }
+
+    [Fact]
     public async Task FailedLaunchReturnsError()
     {
         using var fixture = new ApplicationFixture(
@@ -125,23 +147,28 @@ public sealed class CliApplicationTests
         public ApplicationFixture(
             StubDesktopLauncher? launcher = null,
             bool probeReachable = true,
-            bool dpapiAvailable = true)
+            bool dpapiAvailable = true,
+            StubDesktopRestarter? restarter = null)
         {
             _temp = new TempDirectory();
             _services = StubCliServices.CreateInTemp(_temp.Path, CapriDefaultSettings.Create());
             Console = new FakeCliConsole(interactive: false);
             Launcher = launcher ?? new StubDesktopLauncher();
+            Restarter = restarter ?? new StubDesktopRestarter();
             Application = new CliApplication(
                 Console,
                 _services,
                 new StubEndpointProbe(probeReachable),
                 Launcher,
-                new StubDpapiProbe(dpapiAvailable));
+                new StubDpapiProbe(dpapiAvailable),
+                restarter: Restarter);
         }
 
         public FakeCliConsole Console { get; }
 
         public StubDesktopLauncher Launcher { get; }
+
+        public StubDesktopRestarter Restarter { get; }
 
         public CliApplication Application { get; }
 

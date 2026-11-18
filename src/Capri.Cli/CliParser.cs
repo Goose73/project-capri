@@ -29,6 +29,9 @@ public enum CliCommandKind
     /// <summary>Launch the desktop application.</summary>
     Start,
 
+    /// <summary>Gracefully stop and relaunch the built desktop application.</summary>
+    Restart,
+
     /// <summary>Alias for <see cref="Start"/>.</summary>
     Gui,
 
@@ -116,6 +119,7 @@ public static class CliParser
         "config",
         "setup",
         "start",
+        "restart",
         "gui",
         "models",
         "dev",
@@ -175,6 +179,9 @@ public static class CliParser
 
             case "gui":
                 return ParseFlagOnly(args, CliCommandKind.Gui, allowJson: false, allowRepair: false);
+
+            case "restart":
+                return ParseFlagOnly(args, CliCommandKind.Restart, allowJson: false, allowRepair: false);
 
             case "config":
                 return ParseConfig(args);

@@ -43,6 +43,7 @@ echo Project Capri
 echo.
 echo Usage:
 echo   capri start           Start Capri (Desktop app)
+echo   capri restart         Safely restart Capri (no active tasks)
 echo   capri gui             Alias for start
 echo   capri status          Show configuration and provider status
 echo   capri doctor          Diagnose settings, endpoints, and credentials

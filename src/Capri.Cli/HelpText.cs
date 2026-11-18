@@ -50,6 +50,7 @@ public static class HelpText
           capri task history [--json]    Show task-history metadata
           capri setup [--repair]         Interactive first-run setup/repair wizard
           capri start                    Launch the desktop app
+          capri restart                  Safely restart desktop (no active tasks)
           capri gui                      Alias for 'capri start'
           capri help [command]           Show help
           capri --version                Show the CLI version
@@ -237,6 +238,16 @@ public static class HelpText
 
                 Lists recent task metadata (id, phase/state, step, verification flags,
                 provider/model). No prompts, plan targets, note contents, or credentials.
+                """,
+            "restart" => """
+                capri restart
+
+                Restarts the built Release Capri desktop for the current Windows
+                user. Refuses when a task is active, another Capri process is
+                present, or the current desktop cannot exit cleanly. Does not
+                force-kill processes, clear emergency stop, or change settings.
+                If the desktop is not running, starts the built Release app.
+                The current Release executable must already be built.
                 """,
             "start" or "gui" => """
                 capri start

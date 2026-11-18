@@ -295,6 +295,23 @@ public sealed class StubDesktopLauncher : IDesktopLauncher
     }
 }
 
+/// <summary>Restart test double, never touches a desktop process.</summary>
+public sealed class StubDesktopRestarter : IDesktopRestarter
+{
+    private readonly DesktopRestartResult _result;
+    public StubDesktopRestarter(DesktopRestartResult? result = null) =>
+        _result = result ?? new DesktopRestartResult(true, "Capri restarted.");
+
+    public int RestartCount { get; private set; }
+
+    public Task<DesktopRestartResult> RestartAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        RestartCount++;
+        return Task.FromResult(_result);
+    }
+}
+
 /// <summary>DPAPI probe double.</summary>
 public sealed class StubDpapiProbe : IDpapiAvailabilityProbe
 {
