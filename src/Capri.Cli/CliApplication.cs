@@ -24,6 +24,7 @@ public sealed class CliApplication
     private readonly TaskCommand _task;
     private readonly DashboardCommand _dashboard;
     private readonly IDesktopLauncher _launcher;
+    private readonly IDesktopRestarter _restarter;
 
     /// <summary>Creates the dispatcher with explicit collaborators.</summary>
     public CliApplication(
@@ -32,12 +33,14 @@ public sealed class CliApplication
         IEndpointProbe probe,
         IDesktopLauncher launcher,
         IDpapiAvailabilityProbe dpapiProbe,
-        IOllamaClient? ollamaClient = null)
+        IOllamaClient? ollamaClient = null,
+        IDesktopRestarter? restarter = null)
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _probe = probe ?? throw new ArgumentNullException(nameof(probe));
         _launcher = launcher ?? throw new ArgumentNullException(nameof(launcher));
+        _restarter = restarter ?? DesktopRestarter.CreateDefault(launcher);
         ArgumentNullException.ThrowIfNull(dpapiProbe);
 
         _status = new StatusCommand(console, services, probe);
@@ -148,6 +151,18 @@ public sealed class CliApplication
             case CliCommandKind.Task:
             case CliCommandKind.Tasks:
                 return await _task.ExecuteAsync(invocation, cancellationToken).ConfigureAwait(false);
+
+            case CliCommandKind.Restart:
+                cancellationToken.ThrowIfCancellationRequested();
+                var restart = await _restarter.RestartAsync(cancellationToken).ConfigureAwait(false);
+                if (restart.Started)
+                {
+                    _console.WriteLine(restart.Message);
+                    return CliExitCodes.Success;
+                }
+
+                _console.WriteErrorLine($"capri: {restart.Message}");
+                return CliExitCodes.Error;
 
             case CliCommandKind.Start:
             case CliCommandKind.Gui:
