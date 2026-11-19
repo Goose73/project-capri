@@ -174,8 +174,11 @@
                                     ToolTip="Reset the task emergency-stop latch for future tasks"
                                     Command="{Binding ResetTaskStopCommand}"/>
                             <Button Content="Start local AI (Ollama)" Style="{StaticResource DarkButton}"
-                                    Margin="0" Click="StartOllama_Click"
+                                    Margin="0,0,5,0" Click="StartOllama_Click"
                                     ToolTip="Start the installed local Ollama server with your permission"/>
+                            <Button Content="Preview Capri voice" Style="{StaticResource DarkButton}"
+                                    Click="PreviewVoice_Click"
+                                    ToolTip="Speak a short fixed example locally without using the microphone or AI"/>
                         </WrapPanel>
                         <TextBlock Text="WEBCAM (opt-in)" FontSize="11"
                                    FontWeight="SemiBold" Foreground="{StaticResource FaceGreen}"/>

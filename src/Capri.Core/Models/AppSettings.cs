@@ -241,6 +241,12 @@ public sealed record AppSettings
         public string NeuralVoiceEndpoint { get; init; } = "http://127.0.0.1:5000";
 
         /// <summary>
+        /// Optional voice model/alias for a local neural TTS server. Empty
+        /// retains its default voice. Never interpreted as a file path.
+        /// </summary>
+        public string NeuralVoiceName { get; init; } = string.Empty;
+
+        /// <summary>
         /// Speech rate multiplier.
         /// </summary>
         public double SpeechRate { get; init; } = 1.0;

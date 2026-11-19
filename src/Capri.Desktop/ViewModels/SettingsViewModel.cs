@@ -91,6 +91,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _enableWakeWord;
     [ObservableProperty] private bool _useLocalNeuralVoice;
     [ObservableProperty] private string _neuralVoiceEndpoint = "http://127.0.0.1:5000";
+    [ObservableProperty] private string _neuralVoiceName = string.Empty;
     [ObservableProperty] private double _voiceRate = 1.0;
     [ObservableProperty] private double _voiceVolume = 1.0;
 
@@ -240,6 +241,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             EnableWakeWord = current.Voice.EnableWakeWord;
             UseLocalNeuralVoice = current.Voice.UseLocalNeuralVoice;
             NeuralVoiceEndpoint = current.Voice.NeuralVoiceEndpoint;
+            NeuralVoiceName = current.Voice.NeuralVoiceName;
             VoiceRate = current.Voice.SpeechRate;
             VoiceVolume = current.Voice.Volume;
             AmbientEnabled = current.AmbientVision.Enabled;
@@ -350,7 +352,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             !Capri.Core.Voice.LocalNeuralVoiceSettings.TryGetSynthesisUri(
                 NeuralVoiceEndpoint, out _))
         {
-            SaveStatus = "Piper speech requires a local-only address such as http://127.0.0.1:5000. No settings were changed.";
+            SaveStatus = "Neural speech requires a loopback-only address such as http://127.0.0.1:5000. No settings were changed.";
             return;
         }
         try
@@ -389,6 +391,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                     EnableWakeWord = EnableWakeWord,
                     UseLocalNeuralVoice = UseLocalNeuralVoice,
                     NeuralVoiceEndpoint = (NeuralVoiceEndpoint ?? string.Empty).Trim(),
+                    NeuralVoiceName = (NeuralVoiceName ?? string.Empty).Trim(),
                     SpeechRate = Math.Clamp(VoiceRate, 0.8, 1.2),
                     Volume = Math.Clamp(VoiceVolume, 0, 1)
                 },
