@@ -1,5 +1,26 @@
 # Voice wake phrases, expressive speech and chat formatting
 
+## New: private Kokoro neural Capri-style voice (19 November 2026)
+
+The integrated **local Kokoro ONNX** engine replaces Windows Hazel/Zira when
+**Settings → Voice → Use natural local neural voice** is enabled and the
+separately installed `%LOCALAPPDATA%\\Capri\\Voice` model files are available.
+Capri starts the fixed installed loopback-only speech engine on demand when
+it needs to narrate a reply; it **never downloads a model or activates the
+microphone** as part of speech synthesis. User-selected voice names such as
+`af_heart`, `af_bella` and `bf_emma` are forwarded to the local
+`/synthesize` service. The speed and volume sliders still apply.
+
+**Test without the wake word:** Open Chat → More controls →
+**Preview Capri voice**, which plays a fixed sample with the microphone
+off. Offline synthetic voice output has been validated via three test
+samples and a loopback HTTP WAV test; actual similarity to the show and
+subjective quality are not automatically verified. The synthesiser is
+not a recording or clone of an anime performer's voice. Existing custom
+Piper servers remain supported and Windows SAPI is the fallback.
+
+Setup script and licenses: [local voice instructions](../tools/CapriVoice/README.md).
+
 Implementation increments: 18–19 November 2026.
 
 ## What works in this version

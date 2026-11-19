@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-19 — Optional local expressive Capri voice
+
+- Integrated a locally installed, loopback-only Kokoro neural TTS service
+  (fixed SHA-256-checked model downloads, synthetic voice presets, no cloud
+  speech API or recording). The existing Piper HTTP protocol remains supported.
+- Capri can start only its exact installed local service when opted-in, without
+  changing custom voice endpoints or downloading models automatically.
+- Added selectable voice names, pacing/volume support, a no-microphone voice
+  preview, and more conversational assistant response styling. Windows speech
+  is retained as a fallback. Exact actor voice reproduction is not claimed.
+
 All notable changes to **Project Capri** are documented here. This project is under active development.
 
 ## [Unreleased] (publication prep, local uncommitted)

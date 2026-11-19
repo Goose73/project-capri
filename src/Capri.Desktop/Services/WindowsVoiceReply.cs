@@ -5,9 +5,9 @@ using Capri.Core.Voice;
 namespace Capri.Desktop.Services;
 
 /// <summary>
-/// Local SAPI speech fallback. Installed Windows voices are functional but
-/// are not a reproduction of a performer and are not a high-quality neural
-/// voice. This adapter can later be replaced with properly licensed local TTS.
+/// Local voice output: try the configured loopback neural TTS service
+/// (Capri Kokoro or Piper), then use installed Windows SAPI speech as a
+/// fallback. No voice reproduces or claims to reproduce an actor's performance.
 /// </summary>
 public sealed class WindowsVoiceReply : IDisposable
 {
@@ -15,8 +15,8 @@ public sealed class WindowsVoiceReply : IDisposable
     private SpeechSynthesizer? _active;
     private readonly PiperNeuralVoiceReply _neural = new();
 
-    /// <returns>True when the configured local Piper neural voice played;
-    /// false when the Windows SAPI fallback was used.</returns>
+    /// <returns>True when configured local neural speech played; otherwise false
+    /// when the Windows SAPI fallback was used.</returns>
     public async Task<bool> SpeakAsync(
         string response, AppSettings.VoiceSettings voice,
         CancellationToken cancellationToken = default)

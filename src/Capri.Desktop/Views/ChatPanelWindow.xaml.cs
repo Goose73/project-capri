@@ -306,6 +306,41 @@ public partial class ChatPanelWindow : Window
         Hide();
     }
 
+    private async void PreviewVoice_Click(object sender, RoutedEventArgs e)
+    {
+        if (_wake.IsListening)
+        {
+            _viewModel.StatusText = "Stop mic before previewing the voice to avoid feedback into the wake recognizer.";
+            return;
+        }
+
+        var settings = _settingsStore.Current.Voice;
+        if (!settings.Enabled)
+        {
+            _viewModel.StatusText = "Enable Voice in Settings to preview Capri's speech.";
+            return;
+        }
+
+        _viewModel.StatusText = "Generating local Capri voice preview...";
+        try
+        {
+            var neural = await _voiceReply.SpeakAsync(
+                "Hey, there you are! I've got this. So, what's the plan?",
+                settings).ConfigureAwait(true);
+            _viewModel.StatusText = neural
+                ? "Local neural voice preview played. Change voice name in Settings to compare."
+                : "Local neural voice unavailable; used basic Windows speech instead.";
+        }
+        catch (OperationCanceledException)
+        {
+            _viewModel.StatusText = "Voice preview stopped.";
+        }
+        catch (Exception)
+        {
+            _viewModel.StatusText = "Could not play the voice preview. Check output device or local voice settings.";
+        }
+    }
+
     private async void StartCamera_Click(object sender, RoutedEventArgs e)
     {
         if (_ambient.IsObserving) return;
@@ -522,7 +557,7 @@ public partial class ChatPanelWindow : Window
                 var usedNeural = await _voiceReply.SpeakAsync(
                     answer, _settingsStore.Current.Voice, cts.Token).ConfigureAwait(true);
                 if (!usedNeural && _settingsStore.Current.Voice.UseLocalNeuralVoice)
-                    _viewModel.StatusText = "Local Piper voice unavailable. Used Windows speech instead.";
+                    _viewModel.StatusText = "Local neural voice unavailable. Used Windows speech instead.";
             }
         }
         catch (OperationCanceledException)

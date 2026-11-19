@@ -9,10 +9,11 @@ using Capri.Core.Voice;
 namespace Capri.Desktop.Services;
 
 /// <summary>
-/// Optional high-quality local neural voice via Piper's documented /synthesize
-/// endpoint. No Piper process, model download, microphone or remote service is
-/// started by Capri. Only a literal loopback IP is allowed. Text and generated
-/// audio stay local; voice model/voice rights belong to the user's installation.
+/// Optional local neural TTS via the loopback-only /synthesize protocol used by
+/// Piper and Capri's installed Kokoro service. An existing local Piper server
+/// is left untouched. The separately installed Capri service may be launched
+/// on demand when explicitly enabled; no models are downloaded and no mic,
+/// remote server or cloud API is started. No user speech is logged.
 /// </summary>
 public sealed class PiperNeuralVoiceReply : IDisposable
 {
@@ -31,7 +32,7 @@ public sealed class PiperNeuralVoiceReply : IDisposable
         };
         _client = new HttpClient(handler, disposeHandler: true)
         {
-            Timeout = TimeSpan.FromSeconds(25)
+            Timeout = TimeSpan.FromSeconds(45)
         };
     }
 
@@ -47,17 +48,26 @@ public sealed class PiperNeuralVoiceReply : IDisposable
 
         try
         {
+            await CapriLocalVoiceBootstrapper.EnsureAvailableAsync(endpoint!, cancellationToken)
+                .ConfigureAwait(false);
+
+            // Optional voice aliases work in the Capri Kokoro service and in
+            // multi-voice Piper servers. Omit the field to preserve the
+            // existing Piper default, including custom server configurations.
+            var payload = new Dictionary<string, object>
+            {
+                ["text"] = text,
+                ["length_scale"] = Math.Clamp(1d / settings.SpeechRate, 0.8d, 1.25d),
+                ["noise_scale"] = 0.6d,
+                ["noise_w_scale"] = 0.8d,
+                ["volume"] = Math.Clamp(settings.Volume, 0, 1)
+            };
+            if (!string.IsNullOrWhiteSpace(settings.NeuralVoiceName))
+                payload["voice"] = settings.NeuralVoiceName.Trim();
+
             using var message = new HttpRequestMessage(HttpMethod.Post, endpoint)
             {
-                Content = JsonContent.Create(new
-                {
-                    text,
-                    // Piper's length_scale < 1 tends to be quicker; the user
-                    // retains full rate control through the existing slider.
-                    length_scale = Math.Clamp(1d / settings.SpeechRate, 0.8d, 1.25d),
-                    noise_scale = 0.6d,
-                    noise_w_scale = 0.8d
-                })
+                Content = JsonContent.Create(payload)
             };
 
             using var response = await _client.SendAsync(
