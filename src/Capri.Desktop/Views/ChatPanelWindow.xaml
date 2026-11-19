@@ -144,6 +144,8 @@
                                    Foreground="{StaticResource EyeBlue}" TextWrapping="Wrap"/>
                         <TextBlock Text="{Binding StatusText}" FontSize="11"
                                    Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="VoiceTip" Text="Wake word is OFF until you press Start mic or use the avatar's right-click menu."
+                                   FontSize="10" Foreground="{StaticResource FaceGreen}" TextWrapping="Wrap" Margin="0,3,0,0"/>
                         <TextBlock Text="{Binding Ambient.StatusText}" FontSize="10"
                                    Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
                     </StackPanel>

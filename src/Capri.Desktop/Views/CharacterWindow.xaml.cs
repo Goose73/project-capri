@@ -521,7 +521,46 @@ public partial class CharacterWindow : Window, IOverlayController
         // Artwork-dependent facial clips are disabled when no cleared frame
         // sequence is installed. Reduce Motion disables all gesture entries.
         if (Avatar.ContextMenu is null) return;
+        foreach (var menu in Avatar.ContextMenu.Items.OfType<MenuItem>())
+        {
+            if (menu.Tag is "VoiceStart") menu.IsEnabled = _chatPanel?.IsVoiceListening != true;
+            if (menu.Tag is "VoiceStop") menu.IsEnabled = _chatPanel?.IsVoiceListening == true;
+        }
         SetGestureMenuAvailability(Avatar.ContextMenu.Items);
+    }
+
+    private void StartVoice_Click(object sender, RoutedEventArgs e)
+    {
+        EnsureChatPanel();
+        if (!_chatPanel!.IsVisible)
+        {
+            _chatPanel.RepositionNear(this);
+            _chatPanel.Show();
+        }
+        _chatPanel.StartVoiceFromAvatar();
+        e.Handled = true;
+    }
+
+    private void StopVoice_Click(object sender, RoutedEventArgs e)
+    {
+        _chatPanel?.StopVoiceFromAvatar();
+        e.Handled = true;
+    }
+
+    /// <summary>Persistent visual disclosure while the user-approved microphone
+    /// remains active, including when the chat panel is hidden.</summary>
+    public void SetVoiceMicrophoneVisible(bool listening) =>
+        VoiceActiveBadge.Visibility = listening ? Visibility.Visible : Visibility.Collapsed;
+
+    public void RevealChatForVoice()
+    {
+        if (!IsVisible) return;
+        EnsureChatPanel();
+        if (!_chatPanel!.IsVisible)
+        {
+            _chatPanel.RepositionNear(this);
+            _chatPanel.Show();
+        }
     }
 
     private void SetGestureMenuAvailability(ItemCollection items)
@@ -651,6 +690,8 @@ public partial class CharacterWindow : Window, IOverlayController
     public void HideOverlay()
     {
         _ambient.Stop();
+        // Hiding the avatar must never leave an invisible microphone session.
+        _chatPanel?.StopVoiceFromAvatar();
         _chatPanel?.Hide();
         if (IsVisible)
         {

@@ -46,6 +46,7 @@ public partial class ChatPanelWindow : Window
         _wake.WakeDetected += OnVoiceWakeDetected;
         _wake.QuestionDetected += OnVoiceQuestionDetected;
         _wake.Feedback += OnVoiceFeedback;
+        _wake.UnexpectedlyStopped += OnVoiceUnexpectedlyStopped;
         _settingsStore.Changed += OnVoiceSettingsChanged;
         Microsoft.Win32.SystemEvents.SessionSwitch += OnWindowsSessionSwitch;
         DataContext = _viewModel;
@@ -59,6 +60,7 @@ public partial class ChatPanelWindow : Window
             _wake.WakeDetected -= OnVoiceWakeDetected;
             _wake.QuestionDetected -= OnVoiceQuestionDetected;
             _wake.Feedback -= OnVoiceFeedback;
+            _wake.UnexpectedlyStopped -= OnVoiceUnexpectedlyStopped;
             _settingsStore.Changed -= OnVoiceSettingsChanged;
             Microsoft.Win32.SystemEvents.SessionSwitch -= OnWindowsSessionSwitch;
             _wake.Dispose();
@@ -74,9 +76,10 @@ public partial class ChatPanelWindow : Window
                     try { InputBox.Focus(); } catch { /* focus is best-effort */ }
                 }, System.Windows.Threading.DispatcherPriority.Input);
             }
-            else
+            else if (Owner is not CharacterWindow character || !character.IsVisible)
             {
-                // A hidden chat must never keep recording speech.
+                // Only a visible avatar with a persistent MIC ON badge may
+                // host an opted-in microphone while the chat panel is hidden.
                 StopVoiceSession();
             }
         };
@@ -343,6 +346,18 @@ public partial class ChatPanelWindow : Window
 
     private void StopCamera_Click(object sender, RoutedEventArgs e) => _ambient.Stop();
 
+    /// <summary>Exposed to the visible avatar's context menu; still requires a
+    /// per-session microphone permission prompt. Settings alone never start capture.</summary>
+    public void StartVoiceFromAvatar()
+    {
+        if (!_wake.IsListening)
+            StartVoiceSession();
+    }
+
+    public void StopVoiceFromAvatar() => StopVoiceSession();
+
+    public bool IsVoiceListening => _wake.IsListening;
+
     private void MicButton_Click(object sender, RoutedEventArgs e)
     {
         if (_wake.IsListening)
@@ -350,6 +365,13 @@ public partial class ChatPanelWindow : Window
             StopVoiceSession();
             return;
         }
+
+        StartVoiceSession();
+    }
+
+    private void StartVoiceSession()
+    {
+        if (!IsVisible) return;
 
         var voice = _settingsStore.Current.Voice;
         if (!voice.Enabled || !voice.EnableWakeWord)
@@ -362,14 +384,15 @@ public partial class ChatPanelWindow : Window
         }
 
         var permission = MessageBox.Show(this,
-            "Allow Capri to use the DEFAULT Windows microphone in this chat session?\n\n" +
+            "Allow Capri to use the DEFAULT Windows microphone while the Capri avatar is visible?\n\n" +
             "The offline Windows recognizer listens for 'Hey Capri' or 'Capri'. " +
             "You can pause before your question, or try speaking it all together. " +
             "Raw audio is not saved or uploaded. " +
             "Recognised question TEXT is sent to your configured AI provider, " +
             "subject to its cloud/local consent settings.\n\n" +
-            "MIC ON stays visible while listening. Press Stop mic, hide chat, " +
-            "close Capri, or lock Windows to stop.\n\n" +
+            "A MIC ON badge stays visible on the avatar even if you close chat. " +
+            "Right-click the avatar and choose Stop listening, press Stop mic in chat, " +
+            "hide the avatar, close Capri, or lock Windows to stop.\n\n" +
             "Windows' built-in reply voice is a basic fallback, not the anime actress's voice.\n\n" +
             "Start this microphone session?",
             "Capri - microphone consent", MessageBoxButton.YesNo,
@@ -382,14 +405,18 @@ public partial class ChatPanelWindow : Window
             Interlocked.Increment(ref _voiceEpoch);
             MicButton.Content = "Stop mic";
             VoiceIndicator.Text = "MIC ON";
-            _viewModel.StatusText = "Mic on (default Windows input). Say 'Hey Capri', then ask your question.";
+            if (Owner is CharacterWindow character)
+                character.SetVoiceMicrophoneVisible(true);
+            VoiceTip.Text = "Listening now. Say 'Hey Capri', pause, then ask your question; or say it together.";
+            _viewModel.StatusText = "Microphone active. Waiting for 'Hey Capri' or 'Capri'.";
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             StopVoiceSession();
             MessageBox.Show(this,
-                "Could not open the offline Windows microphone recognizer. " +
-                "Check microphone access, default recording device and installed speech languages.",
+                "Could not start local speech recognition. Check Windows microphone privacy, " +
+                "the default recording device and installed offline English speech recognition.\n\n" +
+                "Windows said: " + ex.GetBaseException().Message,
                 "Capri - microphone unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -407,13 +434,29 @@ public partial class ChatPanelWindow : Window
         }));
     }
 
+    private void OnVoiceUnexpectedlyStopped(string message)
+    {
+        var epoch = Volatile.Read(ref _voiceEpoch);
+        _ = Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (epoch != Volatile.Read(ref _voiceEpoch) || !_wake.IsListening) return;
+            StopVoiceSession();
+            _viewModel.StatusText = message;
+            VoiceTip.Text = message;
+        }));
+    }
+
     private void OnVoiceWakeDetected()
     {
         var epoch = Volatile.Read(ref _voiceEpoch);
         _ = Dispatcher.BeginInvoke(new Action(() =>
         {
-            if (epoch != Volatile.Read(ref _voiceEpoch) ||
-                !_wake.IsListening || !IsVisible) return;
+            if (epoch != Volatile.Read(ref _voiceEpoch) || !_wake.IsListening) return;
+            // Hands-free wake works with chat hidden while the avatar and MIC ON
+            // badge stay visible. A wake opens the panel for the answer.
+            if (!IsVisible && Owner is CharacterWindow characterOwner && characterOwner.IsVisible)
+                characterOwner.RevealChatForVoice();
+            if (!IsVisible) return;
             VoiceIndicator.Text = "MIC ON · LISTENING";
             _viewModel.StatusText = "Capri heard you. Ask your question now.";
             if (Owner is CharacterWindow character)
@@ -428,7 +471,10 @@ public partial class ChatPanelWindow : Window
         {
             // An old recognition event must NEVER be submitted after the
             // user ended a session and started another.
-            if (epoch == Volatile.Read(ref _voiceEpoch))
+            if (epoch != Volatile.Read(ref _voiceEpoch) || !_wake.IsListening) return;
+            if (!IsVisible && Owner is CharacterWindow characterOwner && characterOwner.IsVisible)
+                characterOwner.RevealChatForVoice();
+            if (IsVisible)
                 _ = AnswerVoiceQuestionAsync(question);
         }));
     }
@@ -493,6 +539,9 @@ public partial class ChatPanelWindow : Window
         try { _wake.Stop(); }
         catch (Exception) { /* A failed driver shutdown must never strand the window. */ }
         VoiceIndicator.Text = "MIC OFF";
+        if (Owner is CharacterWindow character)
+            character.SetVoiceMicrophoneVisible(false);
+        VoiceTip.Text = "Wake word is OFF until you press Start mic or use the avatar's right-click menu.";
         MicButton.Content = "Start mic";
     }
 
