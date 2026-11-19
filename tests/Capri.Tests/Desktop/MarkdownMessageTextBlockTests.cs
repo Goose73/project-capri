@@ -36,7 +36,9 @@ public sealed class MarkdownMessageTextBlockTests
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
+        // Hosted Windows CI can take longer than five seconds to initialize
+        // an STA/WPF dispatcher under concurrent test load.
+        Assert.True(thread.Join(TimeSpan.FromSeconds(20)));
         Assert.Null(failure);
     }
 
@@ -59,7 +61,9 @@ public sealed class MarkdownMessageTextBlockTests
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
+        // Hosted Windows CI can take longer than five seconds to initialize
+        // an STA/WPF dispatcher under concurrent test load.
+        Assert.True(thread.Join(TimeSpan.FromSeconds(20)));
         Assert.Null(failure);
     }
 }

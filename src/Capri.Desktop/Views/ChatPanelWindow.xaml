@@ -144,8 +144,14 @@
                                    Foreground="{StaticResource EyeBlue}" TextWrapping="Wrap"/>
                         <TextBlock Text="{Binding StatusText}" FontSize="11"
                                    Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
-                        <TextBlock x:Name="VoiceTip" Text="Wake word is OFF until you press Start mic or use the avatar's right-click menu."
+                        <TextBlock x:Name="VoiceTip" Text="MIC OFF — right-click Capri and choose Start listening to enable the wake phrase."
                                    FontSize="10" Foreground="{StaticResource FaceGreen}" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                        <ProgressBar x:Name="MicLevelBar" Minimum="0" Maximum="100" Value="0"
+                                     Height="6" Margin="0,4,0,2" Background="#332F3340"
+                                     Foreground="{StaticResource EyeBlue}" Visibility="Collapsed"/>
+                        <TextBlock x:Name="MicLevelLabel" Text="Input level: 0 / 100"
+                                   FontSize="10" Foreground="{StaticResource TextDim}"
+                                   Visibility="Collapsed"/>
                         <TextBlock Text="{Binding Ambient.StatusText}" FontSize="10"
                                    Foreground="{StaticResource TextDim}" TextWrapping="Wrap"/>
                     </StackPanel>

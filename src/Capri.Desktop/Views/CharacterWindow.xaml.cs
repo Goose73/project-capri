@@ -153,6 +153,7 @@ public partial class CharacterWindow : Window, IOverlayController
         }
 
         ApplyUiSettings(_settingsStore.Current);
+        SetVoiceMicrophoneVisible(_chatPanel?.IsVoiceListening == true);
         RestoreOrPlaceDefault(_settingsStore.Current);
     }
 
@@ -208,6 +209,7 @@ public partial class CharacterWindow : Window, IOverlayController
                 ApplyUiSettings(e.Current);
                 ClampToCurrentMonitor();
             }
+            SetVoiceMicrophoneVisible(_chatPanel?.IsVoiceListening == true);
         });
     }
 
@@ -549,8 +551,14 @@ public partial class CharacterWindow : Window, IOverlayController
 
     /// <summary>Persistent visual disclosure while the user-approved microphone
     /// remains active, including when the chat panel is hidden.</summary>
-    public void SetVoiceMicrophoneVisible(bool listening) =>
+    public void SetVoiceMicrophoneVisible(bool listening)
+    {
         VoiceActiveBadge.Visibility = listening ? Visibility.Visible : Visibility.Collapsed;
+        var voice = _settingsStore.Current.Voice;
+        VoiceInactiveBadge.Visibility = !listening && voice.Enabled && voice.EnableWakeWord
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
 
     public void RevealChatForVoice()
     {

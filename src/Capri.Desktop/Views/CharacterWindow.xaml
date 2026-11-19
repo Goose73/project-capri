@@ -68,7 +68,15 @@
                 </ContextMenu>
             </controls:AvatarControl.ContextMenu>
         </controls:AvatarControl>
-        <Border x:Name="VoiceActiveBadge" Visibility="Collapsed"
+        <Border x:Name="VoiceInactiveBadge" Visibility="Collapsed" IsHitTestVisible="False"
+                HorizontalAlignment="Left" VerticalAlignment="Top"
+                Margin="6,5,0,0" Padding="7,4"
+                BorderBrush="#88D4A1FF" BorderThickness="1"
+                Background="#EE101015" CornerRadius="6"
+                ToolTip="Voice is enabled in Settings, but the microphone is OFF. Right-click Capri and choose Start listening.">
+            <TextBlock Foreground="#FFC7B9DE" FontSize="10" Text="MIC OFF — right-click"/>
+        </Border>
+        <Border x:Name="VoiceActiveBadge" Visibility="Collapsed" IsHitTestVisible="False"
                 HorizontalAlignment="Left" VerticalAlignment="Top"
                 Margin="6,5,0,0" Padding="7,4"
                 BorderBrush="#FF388FFF" BorderThickness="1"
