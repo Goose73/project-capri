@@ -33,6 +33,7 @@ public partial class ChatPanelWindow : Window
     private readonly WindowsVoiceReply _voiceReply = new();
     private CancellationTokenSource? _voiceResponseCts;
     private int _voiceEpoch;
+    private long _lastLevelTick;
     private bool _allowClose;
 
     public ChatPanelWindow(OverlayChatViewModel viewModel, IServiceProvider serviceProvider)
@@ -46,6 +47,7 @@ public partial class ChatPanelWindow : Window
         _wake.WakeDetected += OnVoiceWakeDetected;
         _wake.QuestionDetected += OnVoiceQuestionDetected;
         _wake.Feedback += OnVoiceFeedback;
+        _wake.AudioLevelChanged += OnVoiceAudioLevelChanged;
         _wake.UnexpectedlyStopped += OnVoiceUnexpectedlyStopped;
         _settingsStore.Changed += OnVoiceSettingsChanged;
         Microsoft.Win32.SystemEvents.SessionSwitch += OnWindowsSessionSwitch;
@@ -60,6 +62,7 @@ public partial class ChatPanelWindow : Window
             _wake.WakeDetected -= OnVoiceWakeDetected;
             _wake.QuestionDetected -= OnVoiceQuestionDetected;
             _wake.Feedback -= OnVoiceFeedback;
+            _wake.AudioLevelChanged -= OnVoiceAudioLevelChanged;
             _wake.UnexpectedlyStopped -= OnVoiceUnexpectedlyStopped;
             _settingsStore.Changed -= OnVoiceSettingsChanged;
             Microsoft.Win32.SystemEvents.SessionSwitch -= OnWindowsSessionSwitch;
@@ -405,6 +408,11 @@ public partial class ChatPanelWindow : Window
             Interlocked.Increment(ref _voiceEpoch);
             MicButton.Content = "Stop mic";
             VoiceIndicator.Text = "MIC ON";
+            MicLevelBar.Value = 0;
+            MicLevelBar.Visibility = Visibility.Visible;
+            MicLevelLabel.Text = "Input level: 0 / 100 — say something to test";
+            MicLevelLabel.Visibility = Visibility.Visible;
+            Interlocked.Exchange(ref _lastLevelTick, 0);
             if (Owner is CharacterWindow character)
                 character.SetVoiceMicrophoneVisible(true);
             VoiceTip.Text = "Listening now. Say 'Hey Capri', pause, then ask your question; or say it together.";
@@ -419,6 +427,24 @@ public partial class ChatPanelWindow : Window
                 "Windows said: " + ex.GetBaseException().Message,
                 "Capri - microphone unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    // This is a live input-level meter only. No audio samples or recognised
+    // text are retained, and queued updates cannot survive Stop mic.
+    private void OnVoiceAudioLevelChanged(int level)
+    {
+        var now = Environment.TickCount64;
+        if (now - Interlocked.Read(ref _lastLevelTick) < 200) return;
+        Interlocked.Exchange(ref _lastLevelTick, now);
+        var epoch = Volatile.Read(ref _voiceEpoch);
+        _ = Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (epoch != Volatile.Read(ref _voiceEpoch) || !_wake.IsListening) return;
+            MicLevelBar.Value = level;
+            MicLevelLabel.Text = level == 0
+                ? "Input level: 0 / 100 — check the default mic if this stays at 0"
+                : $"Input level: {level} / 100 — microphone signal detected";
+        }));
     }
 
     private void OnVoiceFeedback(string message)
@@ -539,9 +565,12 @@ public partial class ChatPanelWindow : Window
         try { _wake.Stop(); }
         catch (Exception) { /* A failed driver shutdown must never strand the window. */ }
         VoiceIndicator.Text = "MIC OFF";
+        MicLevelBar.Value = 0;
+        MicLevelBar.Visibility = Visibility.Collapsed;
+        MicLevelLabel.Visibility = Visibility.Collapsed;
         if (Owner is CharacterWindow character)
             character.SetVoiceMicrophoneVisible(false);
-        VoiceTip.Text = "Wake word is OFF until you press Start mic or use the avatar's right-click menu.";
+        VoiceTip.Text = "MIC OFF — right-click Capri and choose Start listening to enable the wake phrase.";
         MicButton.Content = "Start mic";
     }
 

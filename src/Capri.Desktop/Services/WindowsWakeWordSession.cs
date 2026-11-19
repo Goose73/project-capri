@@ -34,6 +34,8 @@ public sealed class WindowsWakeWordSession : IDisposable
     public event Action<string>? Feedback;
     /// <summary>The recognizer stopped without an explicit mic-off action.</summary>
     public event Action<string>? UnexpectedlyStopped;
+    /// <summary>Transient local input level (0-100), never audio samples or text.</summary>
+    public event Action<int>? AudioLevelChanged;
 
     public void Start(string? preferredLanguage)
     {
@@ -87,6 +89,7 @@ public sealed class WindowsWakeWordSession : IDisposable
             engine.SpeechRecognized += OnRecognized;
             engine.SpeechRecognitionRejected += OnRecognitionRejected;
             engine.SpeechDetected += OnSpeechDetected;
+            engine.AudioLevelUpdated += OnAudioLevelUpdated;
             engine.AudioSignalProblemOccurred += OnAudioSignalProblemOccurred;
             engine.RecognizeCompleted += OnRecognizeCompleted;
             engine.RecognizerUpdateReached += OnRecognizerUpdateReached;
@@ -150,6 +153,15 @@ public sealed class WindowsWakeWordSession : IDisposable
             : "Mic heard speech, but not 'Hey Capri'. Try saying 'Hey Cap-ree' clearly.");
     }
 
+    private void OnAudioLevelUpdated(object? sender, AudioLevelUpdatedEventArgs e)
+    {
+        lock (_sync)
+        {
+            if (_recognizer is null || !ReferenceEquals(sender, _recognizer)) return;
+        }
+        AudioLevelChanged?.Invoke(Math.Clamp(e.AudioLevel, 0, 100));
+    }
+
     private void OnAudioSignalProblemOccurred(object? sender, AudioSignalProblemOccurredEventArgs e)
     {
         var status = e.AudioSignalProblem.ToString() switch
@@ -189,6 +201,7 @@ public sealed class WindowsWakeWordSession : IDisposable
         bool wake = false;
         string? question = null;
         bool updateMode = false;
+        string? recognitionHint = null;
         SpeechRecognitionEngine? engine;
         var grammarName = e.Result?.Grammar?.Name;
         var text = e.Result?.Text;
@@ -210,16 +223,26 @@ public sealed class WindowsWakeWordSession : IDisposable
                     wake = true;
                     updateMode = true;
                 }
+                else
+                {
+                    recognitionHint = "Windows heard a possible 'Hey Capri' command, but recognition was not confident enough. Try pausing after the wake phrase.";
+                }
             }
             else if (!_waitingForQuestion &&
-                     string.Equals(grammarName, "capri-wake", StringComparison.Ordinal) &&
-                     WakeWordPolicy.IsWakePhrase(text, confidence))
+                     string.Equals(grammarName, "capri-wake", StringComparison.Ordinal))
             {
-                _waitingForQuestion = true;
-                _armedUntil = DateTimeOffset.UtcNow.AddSeconds(12);
-                _questionTimer?.Change(TimeSpan.FromSeconds(12), Timeout.InfiniteTimeSpan);
-                wake = true;
-                updateMode = true;
+                if (WakeWordPolicy.IsWakePhrase(text, confidence))
+                {
+                    _waitingForQuestion = true;
+                    _armedUntil = DateTimeOffset.UtcNow.AddSeconds(12);
+                    _questionTimer?.Change(TimeSpan.FromSeconds(12), Timeout.InfiniteTimeSpan);
+                    wake = true;
+                    updateMode = true;
+                }
+                else
+                {
+                    recognitionHint = "Windows heard a possible wake phrase but was not confident enough. Say 'Hey Cap-ree' clearly.";
+                }
             }
             else if (_waitingForQuestion &&
                      string.Equals(grammarName, "capri-question", StringComparison.Ordinal))
@@ -233,9 +256,15 @@ public sealed class WindowsWakeWordSession : IDisposable
                     _questionTimer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
                     updateMode = true;
                 }
+                else
+                {
+                    recognitionHint = "Windows heard your question but was not confident enough. Please repeat it.";
+                }
             }
         }
 
+        if (recognitionHint is not null)
+            ReportFeedback(recognitionHint);
         if (updateMode)
             RequestGrammarSwitch(engine);
         if (wake) WakeDetected?.Invoke();
@@ -321,6 +350,7 @@ public sealed class WindowsWakeWordSession : IDisposable
         engine.SpeechRecognized -= OnRecognized;
         engine.SpeechRecognitionRejected -= OnRecognitionRejected;
         engine.SpeechDetected -= OnSpeechDetected;
+        engine.AudioLevelUpdated -= OnAudioLevelUpdated;
         engine.AudioSignalProblemOccurred -= OnAudioSignalProblemOccurred;
         engine.RecognizeCompleted -= OnRecognizeCompleted;
         engine.RecognizerUpdateReached -= OnRecognizerUpdateReached;
