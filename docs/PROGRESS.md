@@ -1,5 +1,9 @@
 # Development progress
 
+## 2026-11-19 — Hands-free session from avatar; MIC ON disclosure (PR pending)
+
+Added right-click avatar **Start listening (Hey Capri)...** and **Stop listening** controls, with the existing explicit per-session microphone permission prompt. The recognizer can now remain active while only Chat is hidden; a persistent avatar **MIC ON** badge discloses capture, and a recognized wake phrase reveals the Chat panel for a question. Hiding the entire avatar, Windows locking, app exit, changing Voice settings to off or choosing Stop listening cancels capture. Speech-engine interruptions and microphone signal problems now have user-visible diagnostics without logging speech/audio. A fallback English recognizer selection and clearer UI guidance help troubleshooting. No background auto-start, cloud transfer of raw audio, changes to custom config, or task-approval bypass. Debug desktop build succeeded with no warnings; 848 local Debug tests passed. Real microphone acoustics still need a user-supervised test.
+
 ## 2026-11-19 — Wake phrase recognition and mic feedback fix (PR pending)
 
 Investigated a report that **“Hey Capri”** did not activate. Saved voice + wake flags were both enabled, Windows microphone privacy was allowed, the active Windows recording input was **TONOR TC-777**, and the installed local speech language was `en-GB`. The existing implementation intentionally kept microphone access **OFF until the Chat panel's manual start-and-consent action**, and hid/locked Chat stopped it; setting flags alone were insufficient. Furthermore, a broad dictation grammar and wake grammar were active together, potentially competing for short wake phrases.

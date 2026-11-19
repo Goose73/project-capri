@@ -33,6 +33,11 @@
                                 ContextMenuOpening="Avatar_ContextMenuOpening">
             <controls:AvatarControl.ContextMenu>
                 <ContextMenu>
+                    <MenuItem Tag="VoiceStart" Header="Start listening (Hey Capri)..."
+                              Click="StartVoice_Click" ToolTip="Opens chat and asks for microphone permission"/>
+                    <MenuItem Tag="VoiceStop" Header="Stop listening"
+                              Click="StopVoice_Click" IsEnabled="False"/>
+                    <Separator/>
                     <MenuItem Header="Appear" Tag="Appear" Click="AvatarGesture_Click"/>
                     <MenuItem Header="Disappear / hide" Tag="Disappear" Click="AvatarGesture_Click"/>
                     <Separator/>
@@ -63,6 +68,14 @@
                 </ContextMenu>
             </controls:AvatarControl.ContextMenu>
         </controls:AvatarControl>
+        <Border x:Name="VoiceActiveBadge" Visibility="Collapsed"
+                HorizontalAlignment="Left" VerticalAlignment="Top"
+                Margin="6,5,0,0" Padding="7,4"
+                BorderBrush="#FF388FFF" BorderThickness="1"
+                Background="#EE101015" CornerRadius="6"
+                ToolTip="Microphone active. Right-click Capri and choose Stop listening to turn it off.">
+            <TextBlock Foreground="#FF388FFF" FontSize="10" FontWeight="Bold" Text="● MIC ON"/>
+        </Border>
         <Border x:Name="WebcamActiveBadge" Visibility="Collapsed"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
                 Margin="0,5,6,0" Padding="7,4"

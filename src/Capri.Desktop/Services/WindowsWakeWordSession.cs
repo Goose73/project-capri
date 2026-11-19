@@ -32,6 +32,8 @@ public sealed class WindowsWakeWordSession : IDisposable
     public event Action<string>? QuestionDetected;
     /// <summary>Only fixed local status strings; never recognised audio text.</summary>
     public event Action<string>? Feedback;
+    /// <summary>The recognizer stopped without an explicit mic-off action.</summary>
+    public event Action<string>? UnexpectedlyStopped;
 
     public void Start(string? preferredLanguage)
     {
@@ -44,7 +46,8 @@ public sealed class WindowsWakeWordSession : IDisposable
         var info = options.FirstOrDefault(x =>
             string.Equals(x.Culture.Name, preferredLanguage, StringComparison.OrdinalIgnoreCase))
             ?? options.FirstOrDefault(x => string.Equals(x.Culture.Name, "en-GB", StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException("No compatible offline Windows speech recognizer is installed.");
+            ?? options.FirstOrDefault(x => string.Equals(x.Culture.Name, "en-US", StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException("No offline English Windows speech recognizer is installed. Install English speech recognition in Windows language settings.");
 
         var engine = new SpeechRecognitionEngine(info);
         Grammar? wake = null;
@@ -84,6 +87,8 @@ public sealed class WindowsWakeWordSession : IDisposable
             engine.SpeechRecognized += OnRecognized;
             engine.SpeechRecognitionRejected += OnRecognitionRejected;
             engine.SpeechDetected += OnSpeechDetected;
+            engine.AudioSignalProblemOccurred += OnAudioSignalProblemOccurred;
+            engine.RecognizeCompleted += OnRecognizeCompleted;
             engine.RecognizerUpdateReached += OnRecognizerUpdateReached;
             engine.SetInputToDefaultAudioDevice();
 
@@ -138,7 +143,33 @@ public sealed class WindowsWakeWordSession : IDisposable
 
     private void OnRecognitionRejected(object? sender, SpeechRecognitionRejectedEventArgs e)
     {
-        ReportFeedback("Speech wasn't recognised. Speak clearly, a little closer to the microphone.");
+        bool waiting;
+        lock (_sync) waiting = _waitingForQuestion;
+        ReportFeedback(waiting
+            ? "Mic heard speech, but the question wasn't clear. Please try again."
+            : "Mic heard speech, but not 'Hey Capri'. Try saying 'Hey Cap-ree' clearly.");
+    }
+
+    private void OnAudioSignalProblemOccurred(object? sender, AudioSignalProblemOccurredEventArgs e)
+    {
+        var status = e.AudioSignalProblem.ToString() switch
+        {
+            "NoSignal" => "Windows reports no microphone signal. Check your default input and mute switch.",
+            "TooSoft" => "Microphone signal is too quiet. Move closer or increase the input level.",
+            "TooLoud" => "Microphone signal is too loud. Reduce the recording level.",
+            "TooNoisy" => "Microphone input is noisy. Try a quieter position.",
+            _ => "Windows reports a microphone signal problem. Check recording device settings."
+        };
+        ReportFeedback(status);
+    }
+
+    private void OnRecognizeCompleted(object? sender, RecognizeCompletedEventArgs e)
+    {
+        lock (_sync)
+        {
+            if (_recognizer is null || !ReferenceEquals(sender, _recognizer) || e.Cancelled) return;
+        }
+        UnexpectedlyStopped?.Invoke("Windows speech recognition stopped. Start mic again to retry.");
     }
 
     private void ReportFeedback(string status)
@@ -290,6 +321,8 @@ public sealed class WindowsWakeWordSession : IDisposable
         engine.SpeechRecognized -= OnRecognized;
         engine.SpeechRecognitionRejected -= OnRecognitionRejected;
         engine.SpeechDetected -= OnSpeechDetected;
+        engine.AudioSignalProblemOccurred -= OnAudioSignalProblemOccurred;
+        engine.RecognizeCompleted -= OnRecognizeCompleted;
         engine.RecognizerUpdateReached -= OnRecognizerUpdateReached;
     }
 
