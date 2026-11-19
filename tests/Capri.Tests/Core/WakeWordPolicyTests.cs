@@ -26,6 +26,38 @@ public sealed class WakeWordPolicyTests
         Assert.False(WakeWordPolicy.IsWakePhrase(phrase, 0.99f));
     }
 
+    [Theory]
+    [InlineData("Hey Capri, what time is it?", "what time is it?")]
+    [InlineData("Capri how are you?", "how are you?")]
+    [InlineData("HEY CAPRI: open the chat", "open the chat")]
+    [InlineData("Hey, Capri! Give me a summary.", "Give me a summary.")]
+    public void SupportsWakeAndQuestionInOneUtterance(string utterance, string expected)
+    {
+        Assert.Equal(expected, WakeWordPolicy.ExtractInlineQuestion(utterance, 0.85f));
+    }
+
+    [Theory]
+    [InlineData("I met Capri yesterday")]
+    [InlineData("Someone said hey Capri how are you")]
+    [InlineData("Captain how are you")]
+    [InlineData("capricious little thing")]
+    [InlineData("Capri's keyboard is broken")]
+    [InlineData("hey Capricorn, what time is it")]
+    [InlineData("Capri")]
+    [InlineData("")]
+    public void RejectsUnanchoredOrWakeOnlySingleUtterances(string utterance)
+    {
+        Assert.Null(WakeWordPolicy.ExtractInlineQuestion(utterance, 0.99f));
+    }
+
+    [Fact]
+    public void RejectsLowConfidenceInlineQuestion()
+    {
+        Assert.Null(WakeWordPolicy.ExtractInlineQuestion("Hey Capri, open notes", 0.3f));
+        Assert.Null(WakeWordPolicy.ExtractInlineQuestion(
+            "Hey Capri " + new string('x', 900), 0.99f));
+    }
+
     [Fact]
     public void LowConfidenceNeverActivatesMicrophoneQuestion()
     {

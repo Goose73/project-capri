@@ -6,10 +6,18 @@ Implementation increment: 18 November 2026.
 
 - Chat now renders a deliberately bounded, **safe** Markdown subset: headings, bold, italic, inline code, fenced code blocks, numbered and bullet lists, paragraphs and labelled HTTP(S) links. It never executes HTML/XAML, downloads image content, opens external links or runs scripts. Right-click **Copy message** to copy the unchanged source text. Streaming updates re-render the current message without accumulating stale formatting.
 - Capri's normal chat microphone button can **explicitly start or stop an offline Windows speech recognition session**. Requires both **Voice** and **Enable wake phrases** to be saved in Settings, followed by a separate Yes/No microphone consent dialog for that session.
-- Wake phrases: **“Hey Capri”** and **“Capri”**, both accepted case-insensitively, with an offline recognition confidence threshold. Capri then listens for **one separate question** for up to **12 seconds**. That question is sent to the **configured AI provider** using the same chat pipeline as typed messages.
+- Wake phrases: **“Hey Capri”** and **“Capri”**, both accepted case-insensitively, with an offline recognition confidence threshold. Capri accepts a **single utterance** (for example “Hey Capri, what time is it?”) or listens for a **separate question** for up to **12 seconds** after the wake phrase. The question is sent to the configured AI provider with the same policy as typed messages.
 - The existing approved character gestures play **Lean In** on a real recognized wake phrase. A visible **MIC ON** state is shown in chat whenever the mic is in use. Hiding or closing the chat, changing voice settings to disabled, stopping the session or locking Windows stops recognition; lock handling stops the audio engine before UI dispatch.
 - Once the AI has answered, a local Windows SAPI female voice can read the reply. Spoken text is shortened and stripped of Markdown symbols, large code blocks and standalone URLs, so it does not narrate source code unnecessarily. Speech rate and volume are configurable.
 - **No microphone starts at Windows boot**, opening Capri, opening Settings, clicking the character, or enabling the saved preference alone. No raw mic recordings are written to disk or uploaded by this recognizer.
+
+## Wake-word troubleshooting (19 November 2026)
+
+**Voice enabled is not the same thing as MIC ON.** Open the Capri Chat panel, click **Start mic**, and approve the microphone permission prompt. Only then will the header display **MIC ON** and listen for “Hey Capri” or “Capri”. If you hide Chat, lock Windows, or exit Capri, the listening session ends; repeat the Start mic step next time.
+
+You can say **“Hey Capri”**, pause briefly, then say your question—or try a single sentence such as **“Hey Capri, how are you?”**. If the mic detects audio but the recognizer rejects it, the Chat status now explains that speech was detected but not understood. Verify the correct Windows default recording device and desktop app microphone permissions.
+
+On the user's Windows PC, the default input was **TONOR TC-777**, microphone permission was allowed, and an **English (UK)** offline recognizer was installed. Capri does not automatically start the mic at boot or silently record audio. This is deliberate; an opt-in always-listening background mode would need a separate explicit privacy design.
 
 ## Voice fidelity: deliberately not marked complete
 
@@ -43,7 +51,7 @@ The older Windows voice stays as a fallback and does not require Piper. No voice
 ## Safety and limitations
 
 - Audio recognition uses the installed **Windows desktop speech engine**, not a custom neural wake-word classifier. Microphone device availability, recognition accuracy, false activations, pronunciation and background noise need manual testing on a physical PC.
-- The fixed two-phrase grammar and the subsequent dictation grammar require a short pause between wake and question. There is no claim of “Hey Capri, what time is it?” in one utterance yet.
+- The recognizer listens for the exact wake phrases without running broad dictation in parallel. The separate question grammar activates for 12 seconds after a confirmed wake. An additional optional wake-prefixed grammar supports “Hey Capri, what time is it?” in one utterance where the installed Windows speech language supports it. Both modes were tested by simulated speech recognition on the installed en-GB desktop recognizer; real live-mic accuracy still needs testing.
 - **Mic listening only runs while the Chat panel is visible and the user has opted in during that session**. This is not a background Windows service. Hiding chat revokes active recognition.
 - Raw microphone audio stays local to Windows recognition. The resulting *text* may be sent to a cloud model only if the configured provider's separate cloud-consent guard permits it; the UI explicitly warns about this.
 - Voice questions can trigger the same existing chat/intents as typed questions, and **do not grant extra file, camera, task approval or shell execution rights**. Emergency-stop state is untouched.

@@ -219,7 +219,7 @@
                          BorderBrush="#55FF176C"
                          BorderThickness="1"
                          Padding="8,6"/>
-                <Button Grid.Column="1" x:Name="MicButton" Content="Mic off" Style="{StaticResource IconButton}" Margin="0,0,6,0" ToolTip="Start/stop offline microphone session; requires consent" Click="MicButton_Click"/>
+                <Button Grid.Column="1" x:Name="MicButton" Content="Start mic" Style="{StaticResource IconButton}" Margin="0,0,6,0" ToolTip="Start/stop offline microphone session; requires consent" Click="MicButton_Click"/>
                 <Button Grid.Column="2" Content="Send" Style="{StaticResource DarkButton}" Margin="0,0,6,0"
                         Command="{Binding SendCommand}"/>
                 <Button Grid.Column="3" Content="Stop" Style="{StaticResource DarkButton}" ToolTip="Stop current response"

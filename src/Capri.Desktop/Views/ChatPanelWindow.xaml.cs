@@ -45,6 +45,7 @@ public partial class ChatPanelWindow : Window
         InitializeComponent();
         _wake.WakeDetected += OnVoiceWakeDetected;
         _wake.QuestionDetected += OnVoiceQuestionDetected;
+        _wake.Feedback += OnVoiceFeedback;
         _settingsStore.Changed += OnVoiceSettingsChanged;
         Microsoft.Win32.SystemEvents.SessionSwitch += OnWindowsSessionSwitch;
         DataContext = _viewModel;
@@ -57,6 +58,7 @@ public partial class ChatPanelWindow : Window
             StopVoiceSession();
             _wake.WakeDetected -= OnVoiceWakeDetected;
             _wake.QuestionDetected -= OnVoiceQuestionDetected;
+            _wake.Feedback -= OnVoiceFeedback;
             _settingsStore.Changed -= OnVoiceSettingsChanged;
             Microsoft.Win32.SystemEvents.SessionSwitch -= OnWindowsSessionSwitch;
             _wake.Dispose();
@@ -361,8 +363,9 @@ public partial class ChatPanelWindow : Window
 
         var permission = MessageBox.Show(this,
             "Allow Capri to use the DEFAULT Windows microphone in this chat session?\n\n" +
-            "The offline Windows recognizer listens for 'Hey Capri' or 'Capri', " +
-            "then captures your next spoken question. Raw audio is not saved or uploaded. " +
+            "The offline Windows recognizer listens for 'Hey Capri' or 'Capri'. " +
+            "You can pause before your question, or try speaking it all together. " +
+            "Raw audio is not saved or uploaded. " +
             "Recognised question TEXT is sent to your configured AI provider, " +
             "subject to its cloud/local consent settings.\n\n" +
             "MIC ON stays visible while listening. Press Stop mic, hide chat, " +
@@ -379,7 +382,7 @@ public partial class ChatPanelWindow : Window
             Interlocked.Increment(ref _voiceEpoch);
             MicButton.Content = "Stop mic";
             VoiceIndicator.Text = "MIC ON";
-            _viewModel.StatusText = "Mic listening offline. Say 'Hey Capri' or 'Capri'.";
+            _viewModel.StatusText = "Mic on (default Windows input). Say 'Hey Capri', then ask your question.";
         }
         catch (Exception)
         {
@@ -389,6 +392,19 @@ public partial class ChatPanelWindow : Window
                 "Check microphone access, default recording device and installed speech languages.",
                 "Capri - microphone unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    private void OnVoiceFeedback(string message)
+    {
+        var epoch = Volatile.Read(ref _voiceEpoch);
+        _ = Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (epoch != Volatile.Read(ref _voiceEpoch) ||
+                !_wake.IsListening || !IsVisible) return;
+            _viewModel.StatusText = message;
+            if (message.StartsWith("No question heard.", StringComparison.Ordinal))
+                VoiceIndicator.Text = "MIC ON";
+        }));
     }
 
     private void OnVoiceWakeDetected()
@@ -477,7 +493,7 @@ public partial class ChatPanelWindow : Window
         try { _wake.Stop(); }
         catch (Exception) { /* A failed driver shutdown must never strand the window. */ }
         VoiceIndicator.Text = "MIC OFF";
-        MicButton.Content = "Mic off";
+        MicButton.Content = "Start mic";
     }
 
     private void OnVoiceSettingsChanged(object? sender, AppSettingsChangedEventArgs e)
